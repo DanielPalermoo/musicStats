@@ -21,6 +21,7 @@ import { getDefaultPlatform, type PlatformDefinition } from '@/components/platfo
 import { MetricsSummary } from '@/components/metrics-summary';
 import { Podium } from '@/components/podium';
 import { ArtistModal } from '@/components/artist-modal';
+import { RemainingArtistsPanel } from '@/components/remaining-artists-panel';
 import { songsLabel } from '@/lib/format';
 
 interface AnalyzeResponse {
@@ -393,11 +394,12 @@ export default function HomePage() {
 
                 <Podium podium={result.stats.podium} onSelectArtist={handleSelectArtist} />
 
-                {result.tracks.length > 0 && (
-                  <section
-                    aria-labelledby="track-list-title"
-                    className="rounded-2xl border border-zinc-800 bg-zinc-900/40"
-                  >
+                <div className="grid items-start gap-6 lg:grid-cols-2">
+                  {result.tracks.length > 0 && (
+                    <section
+                      aria-labelledby="track-list-title"
+                      className="rounded-2xl border border-zinc-800 bg-zinc-900/40"
+                    >
                     <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
                       <div>
                         <h2
@@ -477,7 +479,13 @@ export default function HomePage() {
                       )}
                     </AnimatePresence>
                   </section>
-                )}
+                  )}
+
+                  <RemainingArtistsPanel
+                    artists={result.stats.artists.slice(3)}
+                    onSelectArtist={handleSelectArtist}
+                  />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

@@ -2,8 +2,16 @@
 
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, ListMusic, Sparkles, Trophy, Users } from 'lucide-react';
-import type { ArtistStats, PlaylistStats } from '@/types/stats';
+import {
+  ChevronDown,
+  ListMusic,
+  Music2,
+  Sparkles,
+  Trophy,
+  UserRound,
+  Users,
+} from 'lucide-react';
+import type { ArtistStats, CollaborationInfo, PlaylistStats } from '@/types/stats';
 import { songsLabel } from '@/lib/format';
 import { ArtistAvatar } from './artist-avatar';
 
@@ -39,6 +47,118 @@ function MetricCard({
       <p className="mt-3 text-3xl font-black tabular-nums text-zinc-50">{value}</p>
       <p className="mt-1 text-xs text-zinc-500">{hint}</p>
     </motion.div>
+  );
+}
+
+function CollaboratorRow({
+  collab,
+  topArtistName,
+  topArtistKey,
+  stats,
+  onSelectArtist,
+}: {
+  collab: CollaborationInfo;
+  topArtistName: string;
+  topArtistKey: string;
+  stats: PlaylistStats;
+  onSelectArtist: (artist: ArtistStats) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const matchedArtist = stats.artists.find(
+    (artist) =>
+      artist.key !== topArtistKey && artist.name.toLowerCase() === collab.artist.toLowerCase()
+  );
+  const openable = Boolean(matchedArtist);
+
+  const previewId = `collab-preview-${topArtistKey}-${collab.artist}`;
+
+  function hide() {
+    setOpen(false);
+  }
+
+  return (
+    <li
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={hide}
+      onFocus={() => setOpen(true)}
+      onBlur={hide}
+    >
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            id={previewId}
+            role="tooltip"
+            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            transition={{ duration: 0.16 }}
+            className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 max-w-[70vw] rounded-2xl border border-zinc-700/80 bg-zinc-950/95 p-3 text-left shadow-2xl backdrop-blur"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+              Canciones con {topArtistName}
+            </p>
+            {collab.sharedTracks.length > 0 ? (
+              <ol className="mt-2 space-y-1.5">
+                {collab.sharedTracks.map((track, index) => (
+                  <li
+                    key={`${collab.artist}-${track}-${index}`}
+                    className="flex items-start gap-2 text-xs text-zinc-200"
+                  >
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-[9px] font-bold text-zinc-400">
+                      {index + 1}
+                    </span>
+                    <span className="line-clamp-2">{track}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="mt-2 text-xs text-zinc-500">Sin canciones compartidas registradas.</p>
+            )}
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-zinc-800/80 px-2 py-1">
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                <Music2 className="h-3 w-3" aria-hidden="true" />
+                {songsLabel(collab.sharedTrackCount)}
+              </span>
+              {openable && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                  Ver perfil ↗
+                </span>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <button
+        type="button"
+        disabled={!openable}
+        onClick={() => {
+          if (matchedArtist) onSelectArtist(matchedArtist);
+        }}
+        aria-describedby={open ? previewId : undefined}
+        aria-label={`${collab.artist}, ${songsLabel(collab.sharedTrackCount)} con ${topArtistName}${
+          openable ? '. Abrir su perfil' : ''
+        }`}
+        className={`group flex w-full items-center justify-between gap-2 rounded-lg bg-zinc-950/60 px-2.5 py-1.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/50 ${
+          openable ? 'cursor-pointer hover:bg-zinc-800/70' : 'cursor-default'
+        }`}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <ArtistAvatar name={collab.artist} size="sm" className="h-6 w-6 text-[9px]" />
+          <span className="truncate text-xs text-zinc-200 transition-colors group-hover:text-zinc-50">
+            {collab.artist}
+          </span>
+          {openable && (
+            <UserRound className="h-3 w-3 shrink-0 text-zinc-600" aria-hidden="true" />
+          )}
+        </span>
+        <span className="shrink-0 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-300">
+          {songsLabel(collab.sharedTrackCount)}
+        </span>
+      </button>
+    </li>
   );
 }
 
@@ -154,18 +274,14 @@ export function MetricsSummary({ stats, onSelectArtist }: MetricsSummaryProps) {
                     {collaboratorCount > 0 ? (
                       <ul className="mt-3 max-h-44 space-y-1 overflow-y-auto pr-1">
                         {topArtist.collaborations.map((collab) => (
-                          <li
+                          <CollaboratorRow
                             key={collab.artist}
-                            className="flex items-center justify-between gap-2 rounded-lg bg-zinc-950/60 px-2.5 py-1.5"
-                          >
-                            <span className="flex min-w-0 items-center gap-2">
-                              <ArtistAvatar name={collab.artist} size="sm" className="h-6 w-6 text-[9px]" />
-                              <span className="truncate text-xs text-zinc-200">{collab.artist}</span>
-                            </span>
-                            <span className="shrink-0 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-300">
-                              {songsLabel(collab.sharedTrackCount)}
-                            </span>
-                          </li>
+                            collab={collab}
+                            topArtistName={topArtist.name}
+                            topArtistKey={topArtist.key}
+                            stats={stats}
+                            onSelectArtist={onSelectArtist}
+                          />
                         ))}
                       </ul>
                     ) : (
