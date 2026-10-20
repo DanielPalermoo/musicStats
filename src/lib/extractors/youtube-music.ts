@@ -25,7 +25,8 @@ const COMMON_HEADERS = {
   'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
 };
 
-const MAX_PAGES = 30; // Hasta ~3000 canciones de seguridad
+const MAX_PAGES = 30; // Hasta ~3000 canciones de seguridad (páginas de ~100)
+const MAX_TRACKS = 5000; // Límite duro de seguridad contra respuestas malformadas
 
 /**
  * Limpia el sufijo "- Topic" o "VEVO" común en canales automáticos de YouTube/YouTube Music
@@ -57,8 +58,25 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
   }
 
   extractPlaylistId(url: string): string | null {
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+
+    // URL con esquema o pegada sin esquema ("music.youtube.com/playlist?list=...").
+    // URLSearchParams ignora por diseño parámetros de tracking (&si=, &feature=shared, #fragment).
+    const candidates: URL[] = [];
     try {
-      const parsed = new URL(url.trim());
+      candidates.push(new URL(trimmed));
+    } catch {
+      if (/^[\w.-]+\.[a-z]{2,}(?:[/?#]|$)/i.test(trimmed)) {
+        try {
+          candidates.push(new URL(`https://${trimmed}`));
+        } catch {
+          // no es una URL interpretable
+        }
+      }
+    }
+
+    for (const parsed of candidates) {
       const host = parsed.hostname.toLowerCase();
       const isYouTubeHost =
         host === 'music.youtube.com' ||
@@ -66,8 +84,7 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
         host === 'youtube.com' ||
         host === 'm.youtube.com' ||
         host === 'youtu.be';
-
-      if (!isYouTubeHost) return null;
+      if (!isYouTubeHost) continue;
 
       const listParam = parsed.searchParams.get('list');
       if (listParam && listParam.trim().length > 0) {
@@ -79,11 +96,9 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
       if (browseMatch) {
         return browseMatch[1].replace(/^VL/, '');
       }
-
-      return null;
-    } catch {
-      return null;
     }
+
+    return null;
   }
 
   async extract(url: string): Promise<ExtractorResult> {
@@ -94,25 +109,109 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
       );
     }
 
-    // Intentamos primero con el endpoint de YouTube Web InnerTube (más consistente en paginación de playlists grandes)
-    // y enriquecemos/respaldamos con YouTube Music InnerTube (WEB_REMIX)
-    const webResult = await this.extractViaYouTubeWeb(playlistId);
-    if (webResult.tracks.length > 0) {
-      return webResult;
+    // Intentamos primero con el endpoint de YouTube Web InnerTube (más consistente en
+    // paginación de playlists grandes) y, si falla o no encuentra nada, con el cliente
+    // WEB_REMIX de YouTube Music. Así un error HTTP/privada en un cliente no aborta el otro.
+    const errors: Error[] = [];
+
+    try {
+      const webResult = await this.extractViaYouTubeWeb(playlistId);
+      if (webResult.tracks.length > 0) return webResult;
+    } catch (err: any) {
+      errors.push(err instanceof Error ? err : new Error(String(err)));
     }
 
-    const remixResult = await this.extractViaYouTubeMusicRemix(playlistId);
-    if (remixResult.tracks.length > 0) {
-      return remixResult;
+    try {
+      const remixResult = await this.extractViaYouTubeMusicRemix(playlistId);
+      if (remixResult.tracks.length > 0) return remixResult;
+    } catch (err: any) {
+      errors.push(err instanceof Error ? err : new Error(String(err)));
     }
 
-    throw new Error(
-      'No se encontraron canciones en la playlist. Verifica que la playlist sea pública y que el enlace sea correcto.'
+    throw this.describeExtractionFailure(playlistId, errors);
+  }
+
+  /**
+   * Elige el error más descriptivo entre los intentos fallidos: primero causas
+   * claras (privada/inexistente), luego errores de red, y por último un mensaje genérico.
+   */
+  private describeExtractionFailure(playlistId: string, errors: Error[]): Error {
+    const notFound = errors.find((e) => /no existe|not found|404/i.test(e.message));
+    if (notFound) return notFound;
+
+    const privateError = errors.find((e) => /privada|private|403|requiere iniciar sesi/i.test(e.message));
+    if (privateError) return privateError;
+
+    const network = errors.find((e) =>
+      /fetch failed|network|enotfound|econnrefused|econnreset|etimedout|eai_again|socket hang up|timed? ?out/i.test(
+        e.message
+      )
+    );
+    if (network) return network;
+
+    if (errors.length > 0) return errors[0];
+
+    return new Error(
+      `No se encontraron canciones en la playlist (id: ${playlistId}). Verifica que la playlist sea pública y que el enlace sea correcto.`
     );
   }
 
   /**
-   * Extrae usando el cliente WEB de InnerTube (soporta paginación completa de miles de canciones en bloques de 100)
+   * Detecta en la respuesta de InnerTube señales de que la playlist no existe o
+   * es privada (aunque la respuesta HTTP sea 200) y devuelve un error descriptivo,
+   * o null si no hay indicios de fallo.
+   */
+  private detectPlaylistError(data: any, context: 'YouTube' | 'YouTube Music'): Error | null {
+    if (!data || typeof data !== 'object') return null;
+
+    const status: string = data.playabilityStatus?.status || '';
+    const reason: string = data.playabilityStatus?.reason || '';
+    const alertText =
+      data.alerts?.[0]?.alertRenderer?.text?.simpleText ||
+      data.alerts?.[0]?.alertRenderer?.text?.runs?.map((r: any) => r?.text).join('') ||
+      '';
+    const apiMessage: string = data.error?.message || '';
+
+    const blob = `${status} ${reason} ${alertText} ${apiMessage}`.toLowerCase();
+
+    if (/login_required|sign in|iniciar sesi/.test(blob)) {
+      return new Error(
+        `La playlist de ${context} es privada o requiere iniciar sesión para verse.`
+      );
+    }
+    if (/private|privada|restricted/.test(blob)) {
+      return new Error(`La playlist de ${context} es privada y no está disponible públicamente.`);
+    }
+    if (/not found|no existe|does not exist|unavailable|no disponible|deleted|eliminada/.test(blob)) {
+      return new Error(`La playlist de ${context} no existe o el enlace es inválido.`);
+    }
+    if (status === 'UNPLAYABLE' || status === 'ERROR') {
+      return new Error(
+        `No se pudo cargar la playlist en ${context}${reason ? `: ${reason}` : '.'}`
+      );
+    }
+
+    return null;
+  }
+
+  /** Errores HTTP descriptivos según el código devuelto por InnerTube. */
+  private describeHttpError(status: number, context: 'YouTube' | 'YouTube Music'): Error {
+    if (status === 404) {
+      return new Error(`La playlist de ${context} no existe o el enlace es inválido (HTTP 404).`);
+    }
+    if (status === 401 || status === 403) {
+      return new Error(`La playlist de ${context} es privada o no está disponible (HTTP ${status}).`);
+    }
+    if (status === 429) {
+      return new Error(
+        `Se superó el límite de peticiones a ${context} (HTTP 429). Intenta de nuevo en unos minutos.`
+      );
+    }
+    return new Error(`Error HTTP ${status} al consultar ${context}.`);
+  }
+
+  /**
+   * Extrae usando el cliente WEB de InnerTube (soporta paginación completa de miles de canciones en bloques de ~100)
    */
   private async extractViaYouTubeWeb(playlistId: string): Promise<ExtractorResult> {
     const browseId = playlistId.startsWith('VL') ? playlistId : `VL${playlistId}`;
@@ -132,7 +231,7 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
     });
 
     if (!initialRes.ok) {
-      throw new Error(`Error HTTP ${initialRes.status} al consultar YouTube`);
+      throw this.describeHttpError(initialRes.status, 'YouTube');
     }
 
     const initialData = await initialRes.json();
@@ -142,10 +241,23 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
     const seenIds = new Set<string>();
 
     this.collectWebTracks(initialData, tracks, seenIds);
+
+    // Respuesta 200 sin canciones: InnerTube suele entregar la causa (privada/inexistente)
+    // en playabilityStatus/alerts aunque el HTTP sea 200.
+    if (tracks.length === 0) {
+      const detected = this.detectPlaylistError(initialData, 'YouTube');
+      if (detected) throw detected;
+    }
+
+    const seenTokens = new Set<string>();
     let continuationToken = this.findContinuationToken(initialData);
 
     let page = 1;
-    while (continuationToken && page < MAX_PAGES) {
+    while (continuationToken && page < MAX_PAGES && tracks.length < MAX_TRACKS) {
+      // Guarda anti-bucle: un token ya consultado significa que la paginación cicló.
+      if (seenTokens.has(continuationToken)) break;
+      seenTokens.add(continuationToken);
+
       page++;
       const contRes = await fetch(endpoint, {
         method: 'POST',
@@ -165,9 +277,9 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
 
       const countBefore = tracks.length;
       this.collectWebTracks(contData, tracks, seenIds);
-      const nextToken = this.findContinuationToken(contData);
 
-      if (tracks.length === countBefore || nextToken === continuationToken) {
+      const nextToken = this.findContinuationToken(contData);
+      if (tracks.length === countBefore || !nextToken || nextToken === continuationToken) {
         break;
       }
       continuationToken = nextToken;
@@ -203,7 +315,7 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
     });
 
     if (!initialRes.ok) {
-      throw new Error(`Error HTTP ${initialRes.status} al consultar YouTube Music`);
+      throw this.describeHttpError(initialRes.status, 'YouTube Music');
     }
 
     const initialData = await initialRes.json();
@@ -214,10 +326,22 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
     const seenIds = new Set<string>();
 
     this.collectRemixTracks(initialData, tracks, seenIds);
+
+    // Respuesta 200 sin canciones: busca la causa (privada/inexistente) en el cuerpo.
+    if (tracks.length === 0) {
+      const detected = this.detectPlaylistError(initialData, 'YouTube Music');
+      if (detected) throw detected;
+    }
+
+    const seenTokens = new Set<string>();
     let continuationToken = this.findContinuationToken(initialData);
 
     let page = 1;
-    while (continuationToken && page < MAX_PAGES) {
+    while (continuationToken && page < MAX_PAGES && tracks.length < MAX_TRACKS) {
+      // Guarda anti-bucle: un token ya consultado significa que la paginación cicló.
+      if (seenTokens.has(continuationToken)) break;
+      seenTokens.add(continuationToken);
+
       page++;
       const contUrl = `${baseEndpoint}?ctoken=${encodeURIComponent(
         continuationToken
@@ -241,9 +365,9 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
 
       const countBefore = tracks.length;
       this.collectRemixTracks(contData, tracks, seenIds);
-      const nextToken = this.findContinuationToken(contData);
 
-      if (tracks.length === countBefore || nextToken === continuationToken) {
+      const nextToken = this.findContinuationToken(contData);
+      if (tracks.length === countBefore || !nextToken || nextToken === continuationToken) {
         break;
       }
       continuationToken = nextToken;
@@ -273,7 +397,7 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
       data?.header?.musicDetailHeaderRenderer?.title?.runs?.[0]?.text ||
       data?.header?.musicEditablePlaylistDetailHeaderRenderer?.header?.musicDetailHeaderRenderer
         ?.title?.runs?.[0]?.text ||
-      this. findResponsiveHeaderTitle(data) ||
+      this.findResponsiveHeaderTitle(data) ||
       null
     );
   }
@@ -305,7 +429,10 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
         renderer.title?.simpleText ||
         '';
 
-      if (videoId && title && !seenIds.has(`${videoId}-${tracks.length}`)) {
+      // Deduplica por videoId entre páginas y aplica el límite de seguridad.
+      if (videoId && title && !seenIds.has(videoId) && tracks.length < MAX_TRACKS) {
+        seenIds.add(videoId);
+
         const bylineRuns: any[] = renderer.shortBylineText?.runs || [];
         const rawArtists: string[] = [];
 
@@ -371,7 +498,13 @@ export class YouTubeMusicExtractor implements PlaylistExtractor {
         renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || [];
       const title = titleRuns.map((r) => r.text).join('').trim();
 
+      // Deduplica por videoId entre páginas y aplica el límite de seguridad.
+      // Las entradas sin videoId conservan el id secuencial (no se pueden deduplicar).
+      if (videoId && seenIds.has(videoId)) return;
+      if (tracks.length >= MAX_TRACKS) return;
+
       if (title) {
+        if (videoId) seenIds.add(videoId);
         const secondColRuns: any[] =
           renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || [];
 

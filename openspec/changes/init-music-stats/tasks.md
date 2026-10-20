@@ -38,5 +38,5 @@
 ## 6. Testing Automatizado y Verificación Integral
 
 - [x] 6.1 Configurar harness de pruebas unitarias con `vitest` y crear suite de tests para `src/lib/stats/normalizer.ts` y `src/lib/stats/calculator.ts`.
-- [ ] 6.2 Probar y validar de punta a punta el flujo con playlists de Spotify (con Client Credentials y fallback anónimo, errores de privadas/inexistentes).
-- [ ] 6.3 Probar y validar de punta a punta el flujo con playlists de YouTube Music de más de 100 temas para asegurar paginación continua sin errores.
+- [x] 6.2 Probar y validar de punta a punta el flujo con playlists de Spotify (con Client Credentials y fallback anónimo, errores de privadas/inexistentes).
+- [x] 6.3 Probar y validar de punta a punta el flujo con playlists de YouTube Music de más de 100 temas para asegurar paginación continua sin errores.
