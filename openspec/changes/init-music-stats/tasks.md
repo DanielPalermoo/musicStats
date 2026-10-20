@@ -32,8 +32,11 @@
 - [x] 5.3 Construir el podio visual animado (`Podium`) para el Top 3 con estética de medallas/colores (oro, plata, bronce).
 - [x] 5.4 Implementar popover/modal en hover para los artistas del podio que liste hasta 3 canciones del artista.
 - [x] 5.5 Implementar modal detallado al hacer click en el perfil del artista con su foto, nombre y la totalidad de canciones en las que participa.
+- [ ] 5.6 Implementar hover/popover en los colaboradores de la tarjeta del Artista #1 (`metrics-summary.tsx`) mostrando las canciones compartidas.
+- [ ] 5.7 Crear componente `remaining-artists-panel.tsx` para el ranking de artistas a partir del 4° puesto, ubicado en paralelo a la lista de canciones en un layout de 2 columnas, con botón de colapso/despliegue, hover de canciones y apertura de modal.
 
-## 6. Verificación Integral
+## 6. Testing Automatizado y Verificación Integral
 
-- [ ] 6.1 Probar de punta a punta el flujo ingresando una playlist de Spotify y verificar renderizado correcto de métricas, podio y modales.
-- [ ] 6.2 Probar de punta a punta el flujo ingresando una playlist de YouTube Music (con más de 100 temas) y verificar paginación y renderizado sin errores.
+- [ ] 6.1 Configurar harness de pruebas unitarias con `vitest` y crear suite de tests para `src/lib/stats/normalizer.ts` y `src/lib/stats/calculator.ts`.
+- [ ] 6.2 Probar y validar de punta a punta el flujo con playlists de Spotify (con Client Credentials y fallback anónimo, errores de privadas/inexistentes).
+- [ ] 6.3 Probar y validar de punta a punta el flujo con playlists de YouTube Music de más de 100 temas para asegurar paginación continua sin errores.
