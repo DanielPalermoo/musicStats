@@ -11,8 +11,8 @@
 - [x] 2.1 Definir contratos de tipos e interfaces unificadas (`PlaylistExtractor`, `ExtractedTrack`, `ExtractorResult`) en `src/types/playlist.ts`.
 - [x] 2.2 Implementar adaptador de YouTube Music (`YouTubeMusicExtractor`) consumiendo InnerTube HTTP con resolución de continuaciones, verificando paginación de canciones sin requerir API key.
 - [x] 2.3 Crear ruta inicial `POST /api/extract` y vista mínima de prueba (input simple sin diseño + listado crudo de canciones) para validar la extracción de YouTube Music en el navegador.
-- [ ] 2.4 Implementar adaptador de Spotify (`SpotifyExtractor`) con autenticación Client Credentials y fallback anónimo, verificando extracción con una playlist pública de prueba.
-- [ ] 2.5 Implementar registro y dispatcher/factory modular de plataformas (`PlatformRegistry`) que gestione los adaptadores actuales y permita registrar nuevas plataformas en el futuro.
+- [x] 2.4 Implementar adaptador de Spotify (`SpotifyExtractor`) con autenticación Client Credentials y fallback anónimo, verificando extracción con una playlist pública de prueba.
+- [x] 2.5 Implementar registro y dispatcher/factory modular de plataformas (`PlatformRegistry`) que gestione los adaptadores actuales y permita registrar nuevas plataformas en el futuro.
 
 ## 3. Motor de Estadísticas y Colaboraciones
 

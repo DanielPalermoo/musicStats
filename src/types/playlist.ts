@@ -7,6 +7,9 @@ export interface ExtractedTrack {
   allArtists: string[];
   thumbnailUrl?: string;
   durationText?: string;
+  durationMs?: number;
+  coverUrl?: string;
+  albumName?: string;
 }
 
 export interface ExtractorResult {
