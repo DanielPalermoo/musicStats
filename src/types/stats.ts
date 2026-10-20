@@ -45,6 +45,13 @@ export interface PodiumEntry {
   /** Posición en el podio: 1 (oro), 2 (plata) o 3 (bronce). */
   rank: 1 | 2 | 3;
   artist: ArtistStats;
+  /**
+   * Hasta 3 canciones destacadas del artista para el popover del podio.
+   * Se priorizan sus temas como artista principal y luego sus colaboraciones.
+   */
+  featuredTracks: string[];
+  /** Miniatura/portada tomada de alguna de las canciones donde aparece el artista. */
+  thumbnailUrl?: string;
 }
 
 /** Resultado completo del motor de estadísticas de una playlist. */

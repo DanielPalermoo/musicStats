@@ -18,12 +18,12 @@
 
 - [x] 3.1 Implementar normalizador de artistas y títulos para extraer colaboradores estructurados y expresiones regex (`feat.`, `ft.`, `with`, `&`, `x`), verificando con casos de prueba unitarios.
 - [x] 3.2 Desarrollar calculador estadístico (`calculateMusicStats`) que determine total de pistas, artista más repetido, listado de canciones y matriz de colaboradores.
-- [ ] 3.3 Implementar ordenamiento de podio Top 3 de artistas (resolviendo empates y seleccionando hasta 3 canciones destacadas por artista).
+- [x] 3.3 Implementar ordenamiento de podio Top 3 de artistas (resolviendo empates y seleccionando hasta 3 canciones destacadas por artista).
 
 ## 4. API Route & Backend
 
-- [ ] 4.1 Crear endpoint `POST /api/analyze` que reciba la URL de la playlist, valide la entrada y retorne las estadísticas en JSON.
-- [ ] 4.2 Agregar manejo de errores descriptivos (URL inválida, playlist privada o no encontrada, error de red) con códigos HTTP adecuados.
+- [x] 4.1 Crear endpoint `POST /api/analyze` que reciba la URL de la playlist, valide la entrada y retorne las estadísticas en JSON.
+- [x] 4.2 Agregar manejo de errores descriptivos (URL inválida, playlist privada o no encontrada, error de red) con códigos HTTP adecuados.
 
 ## 5. Interfaz de Usuario y Componentes Interactivos
 
