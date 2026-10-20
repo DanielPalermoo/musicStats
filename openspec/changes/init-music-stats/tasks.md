@@ -27,11 +27,11 @@
 
 ## 5. Interfaz de Usuario y Componentes Interactivos
 
-- [ ] 5.1 Construir catálogo/selector dinámico de plataformas con tarjetas interactivas (boxes) configurables (YouTube, Spotify, y placeholders extensibles para Deezer, SoundCloud y futuras adiciones).
-- [ ] 5.2 Construir sección de resumen con métricas clave (total canciones, tarjeta del artista #1 y lista desplegable de colaboradores).
-- [ ] 5.3 Construir el podio visual animado (`Podium`) para el Top 3 con estética de medallas/colores (oro, plata, bronce).
-- [ ] 5.4 Implementar popover/modal en hover para los artistas del podio que liste hasta 3 canciones del artista.
-- [ ] 5.5 Implementar modal detallado al hacer click en el perfil del artista con su foto, nombre y la totalidad de canciones en las que participa.
+- [x] 5.1 Construir catálogo/selector dinámico de plataformas con tarjetas interactivas (boxes) configurables (YouTube, Spotify, y placeholders extensibles para Deezer, SoundCloud y futuras adiciones).
+- [x] 5.2 Construir sección de resumen con métricas clave (total canciones, tarjeta del artista #1 y lista desplegable de colaboradores).
+- [x] 5.3 Construir el podio visual animado (`Podium`) para el Top 3 con estética de medallas/colores (oro, plata, bronce).
+- [x] 5.4 Implementar popover/modal en hover para los artistas del podio que liste hasta 3 canciones del artista.
+- [x] 5.5 Implementar modal detallado al hacer click en el perfil del artista con su foto, nombre y la totalidad de canciones en las que participa.
 
 ## 6. Verificación Integral
 
