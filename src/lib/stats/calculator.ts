@@ -3,8 +3,13 @@
  *
  * calculateMusicStats recorre las pistas extraídas, cuenta apariciones por
  * artista normalizado, determina el artista más frecuente (#1) con el detalle
- * de sus canciones y colaboradores, y arma el podio Top 3 (con desempate
- * alfabético).
+ * de sus canciones y colaboradores, y arma el podio Top 3.
+ *
+ * El orden de los artistas se resuelve con desempates sucesivos:
+ *   1. Cantidad de apariciones (descendente).
+ *   2. Cantidad de temas como artista principal (descendente).
+ *   3. Índice de primera aparición en la playlist (ascendente).
+ *   4. Nombre (alfabético, locale español).
  */
 
 import type { ExtractedTrack } from '@/types/playlist';
@@ -18,6 +23,7 @@ import type {
 import { getTrackArtists, normalizeArtistName } from './normalizer';
 
 const PODIUM_SIZE = 3;
+const FEATURED_TRACKS_SIZE = 3;
 
 interface CollaborationAccumulator {
   key: string;
@@ -31,6 +37,8 @@ interface ArtistAccumulator {
   appearanceCount: number;
   mainTrackCount: number;
   featuredTrackCount: number;
+  /** Posición (0-based) de la primera pista de la playlist en la que aparece. */
+  firstAppearanceIndex: number;
   tracks: TrackAppearance[];
   collaborations: Map<string, CollaborationAccumulator>;
 }
@@ -53,12 +61,53 @@ function bumpNameCount(nameCounts: Map<string, number>, name: string): void {
 }
 
 /**
+ * Algunos extractores (por ejemplo, el de Spotify) pueden exponer la portada
+ * como `coverUrl`. Se acepta además de `thumbnailUrl` sin acoplar el tipo base.
+ */
+function getTrackCoverUrl(track: ExtractedTrack): string | undefined {
+  const maybeCover = track as ExtractedTrack & { coverUrl?: string };
+  return track.thumbnailUrl ?? maybeCover.coverUrl;
+}
+
+/**
+ * Elige hasta 3 canciones destacadas del artista: primero sus temas como
+ * artista principal y después sus colaboraciones, sin repetir títulos.
+ */
+function pickFeaturedTracks(artistTracks: TrackAppearance[]): string[] {
+  const ordered = [...artistTracks].sort(
+    (a, b) => Number(b.isMainArtist) - Number(a.isMainArtist)
+  );
+
+  const seen = new Set<string>();
+  const featured: string[] = [];
+  for (const track of ordered) {
+    const dedupeKey = track.trackTitle.trim().toLowerCase();
+    if (!dedupeKey || seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    featured.push(track.trackTitle);
+    if (featured.length === FEATURED_TRACKS_SIZE) break;
+  }
+  return featured;
+}
+
+/**
  * Calcula las estadísticas completas de una playlist a partir de sus pistas.
  */
 export function calculateMusicStats(tracks: ExtractedTrack[]): PlaylistStats {
   const artists = new Map<string, ArtistAccumulator>();
 
-  function touchArtist(key: string, displayName: string): ArtistAccumulator {
+  // Portada por pista, para reutilizarla como foto del artista en el podio.
+  const coverByTrackId = new Map<string, string>();
+  for (const track of tracks) {
+    const coverUrl = getTrackCoverUrl(track);
+    if (coverUrl) coverByTrackId.set(track.id, coverUrl);
+  }
+
+  function touchArtist(
+    key: string,
+    displayName: string,
+    trackIndex: number
+  ): ArtistAccumulator {
     let acc = artists.get(key);
     if (!acc) {
       acc = {
@@ -67,6 +116,7 @@ export function calculateMusicStats(tracks: ExtractedTrack[]): PlaylistStats {
         appearanceCount: 0,
         mainTrackCount: 0,
         featuredTrackCount: 0,
+        firstAppearanceIndex: trackIndex,
         tracks: [],
         collaborations: new Map(),
       };
@@ -76,7 +126,8 @@ export function calculateMusicStats(tracks: ExtractedTrack[]): PlaylistStats {
     return acc;
   }
 
-  for (const track of tracks) {
+  for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
+    const track = tracks[trackIndex];
     const trackArtists = getTrackArtists(track);
     if (trackArtists.length === 0) continue;
 
@@ -89,7 +140,7 @@ export function calculateMusicStats(tracks: ExtractedTrack[]): PlaylistStats {
         : trackArtists[0].key;
 
     for (const artist of trackArtists) {
-      const acc = touchArtist(artist.key, artist.displayName);
+      const acc = touchArtist(artist.key, artist.displayName, trackIndex);
       acc.appearanceCount += 1;
 
       const isMainArtist = artist.key === mainKey;
@@ -123,7 +174,7 @@ export function calculateMusicStats(tracks: ExtractedTrack[]): PlaylistStats {
   }
 
   const artistStats: ArtistStats[] = [...artists.values()]
-    .map((acc): ArtistStats => {
+    .map((acc) => {
       const collaborations: CollaborationInfo[] = [...acc.collaborations.values()]
         .map((collab): CollaborationInfo => {
           const name = pickFrequentName(collab.nameCounts, collab.sharedTracks[0] ?? collab.key);
@@ -139,7 +190,7 @@ export function calculateMusicStats(tracks: ExtractedTrack[]): PlaylistStats {
         );
 
       const name = pickFrequentName(acc.nameCounts, acc.key);
-      return {
+      const stats: ArtistStats = {
         key: acc.key,
         name,
         appearanceCount: acc.appearanceCount,
@@ -148,17 +199,35 @@ export function calculateMusicStats(tracks: ExtractedTrack[]): PlaylistStats {
         tracks: acc.tracks,
         collaborations,
       };
+      return { stats, firstAppearanceIndex: acc.firstAppearanceIndex };
     })
     .sort(
       (a, b) =>
-        b.appearanceCount - a.appearanceCount || a.name.localeCompare(b.name, 'es')
-    );
+        b.stats.appearanceCount - a.stats.appearanceCount ||
+        b.stats.mainTrackCount - a.stats.mainTrackCount ||
+        a.firstAppearanceIndex - b.firstAppearanceIndex ||
+        a.stats.name.localeCompare(b.stats.name, 'es')
+    )
+    .map((entry) => entry.stats);
 
   const topArtist = artistStats[0] ?? null;
-  const podium: PodiumEntry[] = artistStats.slice(0, PODIUM_SIZE).map((artist, idx) => ({
-    rank: (idx + 1) as PodiumEntry['rank'],
-    artist,
-  }));
+  const podium: PodiumEntry[] = artistStats.slice(0, PODIUM_SIZE).map((artist, idx) => {
+    let thumbnailUrl: string | undefined;
+    for (const appearance of artist.tracks) {
+      const coverUrl = coverByTrackId.get(appearance.trackId);
+      if (coverUrl) {
+        thumbnailUrl = coverUrl;
+        break;
+      }
+    }
+
+    return {
+      rank: (idx + 1) as PodiumEntry['rank'],
+      artist,
+      featuredTracks: pickFeaturedTracks(artist.tracks),
+      thumbnailUrl,
+    };
+  });
 
   return {
     totalTracks: tracks.length,
