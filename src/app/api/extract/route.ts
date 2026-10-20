@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { YouTubeMusicExtractor } from '@/lib/extractors/youtube-music';
-
-const ytExtractor = new YouTubeMusicExtractor();
+import { platformRegistry } from '@/lib/extractors/registry';
 
 export async function POST(request: Request) {
   try {
@@ -15,17 +13,18 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!ytExtractor.canHandle(url)) {
+    const extractor = platformRegistry.getExtractor(url);
+    if (!extractor) {
       return NextResponse.json(
         {
           error:
-            'Por ahora estamos probando únicamente URLs de playlists de YouTube / YouTube Music (debe incluir ?list=...).',
+            'Por ahora aceptamos URLs de playlists públicas de Spotify y YouTube / YouTube Music.',
         },
         { status: 400 }
       );
     }
 
-    const result = await ytExtractor.extract(url);
+    const result = await extractor.extract(url);
     return NextResponse.json(result);
   } catch (err: any) {
     console.error('[POST /api/extract] Error:', err);

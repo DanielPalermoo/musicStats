@@ -1,14 +1,6 @@
 import { NextResponse } from 'next/server';
-import { YouTubeMusicExtractor } from '@/lib/extractors/youtube-music';
+import { platformRegistry } from '@/lib/extractors/registry';
 import { calculateMusicStats } from '@/lib/stats/calculator';
-import type { PlaylistExtractor } from '@/types/playlist';
-
-/**
- * Extractores disponibles mientras no exista el PlatformRegistry (tarea 2.5).
- * Cuando el registro esté implementado, basta con reemplazar esta lista por
- * los adaptadores que exponga el registro.
- */
-const availableExtractors: PlaylistExtractor[] = [new YouTubeMusicExtractor()];
 
 /** Palabras clave (en minúsculas) que indican playlist privada, eliminada o inexistente. */
 const NOT_FOUND_KEYWORDS = [
@@ -30,13 +22,15 @@ const NOT_FOUND_KEYWORDS = [
 const NETWORK_ERROR_PATTERN =
   /fetch failed|network|enotfound|econnrefused|econnreset|etimedout|eai_again|socket hang up|timed? ?out/i;
 
-function parseHttpUrl(value: string): URL | null {
+function parseHttpOrUri(value: string): boolean {
+  if (value.startsWith('spotify:playlist:') || value.startsWith('spotify:user:')) {
+    return true;
+  }
   try {
     const parsed = new URL(value);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-    return parsed;
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
   } catch {
-    return null;
+    return false;
   }
 }
 
@@ -68,7 +62,8 @@ function isNetworkError(error: unknown): boolean {
 /**
  * POST /api/analyze
  *
- * Recibe `{ url }`, detecta la plataforma, extrae la playlist y devuelve las
+ * Recibe `{ url }`, detecta la plataforma mediante PlatformRegistry,
+ * extrae la playlist (YouTube Music o Spotify) y devuelve las
  * estadísticas calculadas junto con las pistas originales.
  */
 export async function POST(request: Request) {
@@ -95,7 +90,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!parseHttpUrl(url)) {
+  if (!parseHttpOrUri(url)) {
     return NextResponse.json(
       {
         error:
@@ -105,12 +100,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const extractor = availableExtractors.find((candidate) => candidate.canHandle(url));
+  const extractor = platformRegistry.getExtractor(url);
   if (!extractor) {
     return NextResponse.json(
       {
         error:
-          'La plataforma de este enlace no está soportada o no corresponde a una playlist. Por ahora puedes analizar playlists públicas de YouTube / YouTube Music (debe incluir ?list=...).',
+          'La plataforma de este enlace no está soportada o no corresponde a una playlist. Por ahora puedes analizar playlists públicas de Spotify y YouTube / YouTube Music.',
       },
       { status: 400 }
     );
@@ -155,6 +150,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
+          message ||
           'Ocurrió un error inesperado al analizar la playlist. Inténtalo de nuevo en unos segundos.',
       },
       { status: 500 }
