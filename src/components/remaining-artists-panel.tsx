@@ -81,6 +81,9 @@ export function RemainingArtistsPanel({ artists, onSelectArtist }: RemainingArti
                 const isHovered = hoveredKey === artist.key;
                 const previewId = `remaining-artist-preview-${artist.key}`;
                 const previewTracks = artist.tracks.slice(0, PREVIEW_TRACK_LIMIT);
+                // Los primeros puestos no tienen espacio por encima dentro del
+                // listado scrolleable: abrimos su popover hacia abajo.
+                const placeDown = index < 3;
 
                 return (
                   <li
@@ -96,11 +99,13 @@ export function RemainingArtistsPanel({ artists, onSelectArtist }: RemainingArti
                         <motion.div
                           id={previewId}
                           role="tooltip"
-                          initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                          initial={{ opacity: 0, y: placeDown ? -6 : 6, scale: 0.97 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                          exit={{ opacity: 0, y: placeDown ? -6 : 6, scale: 0.97 }}
                           transition={{ duration: 0.16 }}
-                          className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-64 max-w-[75vw] rounded-2xl border border-zinc-700/80 bg-zinc-950/95 p-3 text-left shadow-2xl backdrop-blur"
+                          className={`pointer-events-none absolute left-0 z-50 w-64 max-w-[75vw] rounded-2xl border border-zinc-700/80 bg-zinc-950/95 p-3 text-left shadow-2xl backdrop-blur ${
+                            placeDown ? 'top-full mt-2' : 'bottom-full mb-2'
+                          }`}
                         >
                           <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
                             <Sparkles className="h-3.5 w-3.5 text-emerald-300" aria-hidden="true" />

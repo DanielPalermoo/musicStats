@@ -52,18 +52,23 @@ function MetricCard({
 
 function CollaboratorRow({
   collab,
+  index,
   topArtistName,
   topArtistKey,
   stats,
   onSelectArtist,
 }: {
   collab: CollaborationInfo;
+  index: number;
   topArtistName: string;
   topArtistKey: string;
   stats: PlaylistStats;
   onSelectArtist: (artist: ArtistStats) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Los primeros colaboradores no tienen espacio por encima dentro del
+  // listado scrolleable: abrimos su popover hacia abajo.
+  const placeDown = index < 2;
 
   const matchedArtist = stats.artists.find(
     (artist) =>
@@ -90,11 +95,13 @@ function CollaboratorRow({
           <motion.div
             id={previewId}
             role="tooltip"
-            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            initial={{ opacity: 0, y: placeDown ? -6 : 6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            exit={{ opacity: 0, y: placeDown ? -6 : 6, scale: 0.97 }}
             transition={{ duration: 0.16 }}
-            className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-60 max-w-[70vw] rounded-2xl border border-zinc-700/80 bg-zinc-950/95 p-3 text-left shadow-2xl backdrop-blur"
+            className={`pointer-events-none absolute left-0 z-50 w-60 max-w-[70vw] rounded-2xl border border-zinc-700/80 bg-zinc-950/95 p-3 text-left shadow-2xl backdrop-blur ${
+              placeDown ? 'top-full mt-2' : 'bottom-full mb-2'
+            }`}
           >
             <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
               Canciones con {topArtistName}
@@ -272,11 +279,12 @@ export function MetricsSummary({ stats, onSelectArtist }: MetricsSummaryProps) {
                     className="overflow-hidden"
                   >
                     {collaboratorCount > 0 ? (
-                      <ul className="mt-3 max-h-44 space-y-1 overflow-y-auto pr-1">
-                        {topArtist.collaborations.map((collab) => (
+                      <ul className="mt-3 max-h-80 space-y-1 overflow-y-auto p-1">
+                        {topArtist.collaborations.map((collab, index) => (
                           <CollaboratorRow
                             key={collab.artist}
                             collab={collab}
+                            index={index}
                             topArtistName={topArtist.name}
                             topArtistKey={topArtist.key}
                             stats={stats}
