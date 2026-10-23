@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -28,6 +28,9 @@ import { MetricsSummary } from '@/components/metrics-summary';
 import { Podium } from '@/components/podium';
 import { ArtistModal } from '@/components/artist-modal';
 import { RemainingArtistsPanel } from '@/components/remaining-artists-panel';
+import { CollaborationGraph } from '@/components/collaboration-graph';
+import { ShareButtons } from '@/components/share/share-buttons';
+import { generateCollaborationGraph } from '@/lib/stats/graph-data';
 import { songsLabel } from '@/lib/format';
 import { buildShareUrl, decodeSharePayload } from '@/lib/share/url-codec';
 
@@ -169,6 +172,13 @@ export default function HomePage() {
       }
     };
   }, []);
+
+  // La red solo se calcula cuando hay resultados; el componente se oculta si
+  // la playlist no tiene colaboraciones.
+  const collaborationGraph = useMemo(
+    () => (result ? generateCollaborationGraph(result.stats) : null),
+    [result]
+  );
 
   function handleSelectPlatform(nextPlatform: PlatformDefinition) {
     if (!nextPlatform.available || loading) return;
@@ -587,6 +597,16 @@ export default function HomePage() {
                 <MetricsSummary stats={result.stats} onSelectArtist={handleSelectArtist} />
 
                 <Podium podium={result.stats.podium} onSelectArtist={handleSelectArtist} />
+
+                {collaborationGraph && collaborationGraph.edges.length > 0 && (
+                  <CollaborationGraph graph={collaborationGraph} />
+                )}
+
+                <ShareButtons
+                  playlistTitle={result.playlistTitle}
+                  stats={result.stats}
+                  platformLabel={PLATFORM_LABELS[result.platform]}
+                />
 
                 <div className="grid items-start gap-6 lg:grid-cols-2">
                   {result.tracks.length > 0 && (
