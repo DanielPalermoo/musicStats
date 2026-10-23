@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -22,6 +22,8 @@ import { MetricsSummary } from '@/components/metrics-summary';
 import { Podium } from '@/components/podium';
 import { ArtistModal } from '@/components/artist-modal';
 import { RemainingArtistsPanel } from '@/components/remaining-artists-panel';
+import { CollaborationGraph } from '@/components/collaboration-graph';
+import { generateCollaborationGraph } from '@/lib/stats/graph-data';
 import { songsLabel } from '@/lib/format';
 
 interface AnalyzeResponse {
@@ -78,6 +80,13 @@ export default function HomePage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const closeArtistModal = useCallback(() => setSelectedArtist(null), []);
+
+  // La red solo se calcula cuando hay resultados; el componente se oculta si
+  // la playlist no tiene colaboraciones.
+  const collaborationGraph = useMemo(
+    () => (result ? generateCollaborationGraph(result.stats) : null),
+    [result]
+  );
 
   function handleSelectPlatform(nextPlatform: PlatformDefinition) {
     if (!nextPlatform.available || loading) return;
@@ -393,6 +402,10 @@ export default function HomePage() {
                 <MetricsSummary stats={result.stats} onSelectArtist={handleSelectArtist} />
 
                 <Podium podium={result.stats.podium} onSelectArtist={handleSelectArtist} />
+
+                {collaborationGraph && collaborationGraph.edges.length > 0 && (
+                  <CollaborationGraph graph={collaborationGraph} />
+                )}
 
                 <div className="grid items-start gap-6 lg:grid-cols-2">
                   {result.tracks.length > 0 && (
