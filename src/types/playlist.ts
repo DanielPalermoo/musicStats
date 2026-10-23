@@ -1,4 +1,4 @@
-export type PlatformType = 'youtube_music' | 'spotify';
+export type PlatformType = 'youtube_music' | 'spotify' | 'deezer' | 'soundcloud';
 
 export interface ExtractedTrack {
   id: string;

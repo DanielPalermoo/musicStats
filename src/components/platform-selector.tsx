@@ -56,24 +56,24 @@ export const PLATFORM_CATALOG: PlatformDefinition[] = [
   {
     id: 'deezer',
     name: 'Deezer',
-    description: 'Integración en preparación.',
-    available: false,
+    description: 'Playlists públicas de Deezer con enlace completo o corto.',
+    available: true,
     placeholder: 'https://www.deezer.com/playlist/...',
     icon: AudioLines,
-    cardGradient: 'from-fuchsia-500/20 via-fuchsia-500/5 to-transparent',
+    cardGradient: 'from-fuchsia-500/25 via-fuchsia-500/5 to-transparent',
     iconClass: 'text-fuchsia-400',
-    selectedRing: 'border-fuchsia-400/70',
+    selectedRing: 'border-fuchsia-400/70 shadow-[0_0_35px_-10px_rgba(232,121,249,0.65)]',
   },
   {
     id: 'soundcloud',
     name: 'SoundCloud',
-    description: 'Integración en preparación.',
-    available: false,
-    placeholder: 'https://soundcloud.com/...',
+    description: 'Sets y playlists públicas de SoundCloud.',
+    available: true,
+    placeholder: 'https://soundcloud.com/usuario/sets/mi-playlist',
     icon: Cloud,
-    cardGradient: 'from-orange-500/20 via-orange-500/5 to-transparent',
+    cardGradient: 'from-orange-500/25 via-orange-500/5 to-transparent',
     iconClass: 'text-orange-400',
-    selectedRing: 'border-orange-400/70',
+    selectedRing: 'border-orange-400/70 shadow-[0_0_35px_-10px_rgba(251,146,60,0.65)]',
   },
 ];
 
@@ -149,6 +149,90 @@ function validateSpotify(rawUrl: string): string | null {
   return null;
 }
 
+function validateDeezer(rawUrl: string): string | null {
+  const parsed = parseHttpUrl(rawUrl);
+  if (typeof parsed === 'string') return parsed;
+
+  const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+
+  // Enlaces cortos de la app: se resuelven en el servidor.
+  if (host === 'deezer.page.link' || host === 'link.deezer.com') {
+    if (parsed.pathname.replace(/\//g, '').length === 0) {
+      return 'El enlace corto de Deezer no contiene una playlist válida.';
+    }
+    return null;
+  }
+
+  if (host !== 'deezer.com' && host !== 'm.deezer.com') {
+    return 'Ese enlace no parece ser de Deezer. Usa un enlace de deezer.com.';
+  }
+
+  if (!/^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?playlist\/\d+/i.test(parsed.pathname)) {
+    return 'El enlace de Deezer debe apuntar a una playlist (/playlist/...).';
+  }
+
+  return null;
+}
+
+const SOUNDCLOUD_RESERVED_SEGMENTS = new Set([
+  'discover',
+  'search',
+  'you',
+  'stream',
+  'upload',
+  'charts',
+  'popular',
+  'tags',
+  'groups',
+  'settings',
+  'notifications',
+  'messages',
+  'library',
+  'likes',
+  'following',
+  'followers',
+  'pages',
+  'pro',
+  'premium',
+  'artists',
+  'playlists',
+  'albums',
+  'tracks',
+  'imprint',
+  'jobs',
+]);
+
+function validateSoundCloud(rawUrl: string): string | null {
+  const parsed = parseHttpUrl(rawUrl);
+  if (typeof parsed === 'string') return parsed;
+
+  const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+
+  // Enlaces cortos de la app: se resuelven en el servidor.
+  if (host === 'on.soundcloud.com') {
+    if (parsed.pathname.replace(/\//g, '').length === 0) {
+      return 'El enlace corto de SoundCloud no contiene un set válido.';
+    }
+    return null;
+  }
+
+  if (host !== 'soundcloud.com' && host !== 'm.soundcloud.com') {
+    return 'Ese enlace no parece ser de SoundCloud. Usa un enlace de soundcloud.com.';
+  }
+
+  const setMatch = parsed.pathname.match(/^\/([^/]+)\/sets\/([^/?#]+)/i);
+  if (setMatch) {
+    if (SOUNDCLOUD_RESERVED_SEGMENTS.has(setMatch[1].toLowerCase())) {
+      return 'Ese enlace de SoundCloud no corresponde a un set de usuario.';
+    }
+    return null;
+  }
+
+  if (/^\/sets\/[^/?#]+/i.test(parsed.pathname)) return null;
+
+  return 'El enlace de SoundCloud debe apuntar a un set (/usuario/sets/...).';
+}
+
 /**
  * Valida el enlace según la plataforma seleccionada.
  * Devuelve un mensaje de error o `null` si es válido.
@@ -162,12 +246,12 @@ export function validatePlaylistUrl(platformId: PlatformId, rawUrl: string): str
       return validateYouTubeMusic(url);
     case 'spotify':
       return validateSpotify(url);
-    default: {
-      const platform = getPlatformDefinition(platformId);
-      return platform && !platform.available
-        ? `${platform.name} todavía no está disponible. Elige YouTube Music o Spotify.`
-        : 'La plataforma seleccionada no está soportada.';
-    }
+    case 'deezer':
+      return validateDeezer(url);
+    case 'soundcloud':
+      return validateSoundCloud(url);
+    default:
+      return 'La plataforma seleccionada no está soportada.';
   }
 }
 
@@ -188,8 +272,8 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
             1. Elige la plataforma
           </h2>
           <p className="text-xs text-zinc-500">
-            El catálogo es extensible: las plataformas marcadas como “Próximamente” se habilitarán
-            al integrar su extractor.
+            El catálogo es extensible: YouTube Music, Spotify, Deezer y SoundCloud ya están
+            disponibles.
           </p>
         </div>
       </div>

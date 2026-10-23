@@ -42,6 +42,8 @@ interface SelectedArtist {
 const PLATFORM_LABELS: Record<PlatformType, string> = {
   youtube_music: 'YouTube Music',
   spotify: 'Spotify',
+  deezer: 'Deezer',
+  soundcloud: 'SoundCloud',
 };
 
 function TrackCover({ src, title }: { src?: string; title: string }) {
