@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          'La plataforma de este enlace no está soportada o no corresponde a una playlist. Por ahora puedes analizar playlists públicas de Spotify y YouTube / YouTube Music.',
+          'La plataforma de este enlace no está soportada o no corresponde a una playlist. Por ahora puedes analizar playlists públicas de Spotify, YouTube / YouTube Music, Deezer y SoundCloud.',
       },
       { status: 400 }
     );

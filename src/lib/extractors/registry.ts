@@ -1,4 +1,6 @@
 import { ExtractorResult, PlaylistExtractor } from '@/types/playlist';
+import { DeezerExtractor } from './deezer';
+import { SoundCloudExtractor } from './soundcloud';
 import { SpotifyExtractor } from './spotify';
 import { YouTubeMusicExtractor } from './youtube-music';
 
@@ -49,7 +51,7 @@ export class PlatformRegistry {
     const extractor = this.getExtractor(url);
     if (!extractor) {
       throw new Error(
-        'La URL no corresponde a una plataforma soportada. Por ahora aceptamos playlists de Spotify y YouTube Music.'
+        'La URL no corresponde a una plataforma soportada. Aceptamos playlists públicas de Spotify, YouTube Music, Deezer y SoundCloud.'
       );
     }
 
@@ -59,4 +61,6 @@ export class PlatformRegistry {
 
 export const platformRegistry = new PlatformRegistry()
   .register(new YouTubeMusicExtractor())
-  .register(new SpotifyExtractor());
+  .register(new SpotifyExtractor())
+  .register(new DeezerExtractor())
+  .register(new SoundCloudExtractor());
