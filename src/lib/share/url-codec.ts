@@ -138,11 +138,15 @@ const DETAIL_LEVELS: DetailLevel[] = [
 const PLATFORM_CODES: Record<PlatformType, string> = {
   youtube_music: 'y',
   spotify: 's',
+  deezer: 'd',
+  soundcloud: 'c',
 };
 
 const PLATFORM_BY_CODE: Record<string, PlatformType> = {
   y: 'youtube_music',
   s: 'spotify',
+  d: 'deezer',
+  c: 'soundcloud',
 };
 
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
