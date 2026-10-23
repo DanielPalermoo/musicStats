@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
+  Copy,
   Disc3,
   Link2,
   ListMusic,
@@ -17,12 +19,17 @@ import {
 import type { ExtractedTrack, PlatformType } from '@/types/playlist';
 import type { ArtistStats, PlaylistStats, PodiumEntry } from '@/types/stats';
 import { PlatformSelector, validatePlaylistUrl } from '@/components/platform-selector';
-import { getDefaultPlatform, type PlatformDefinition } from '@/components/platform-selector';
+import {
+  getDefaultPlatform,
+  getPlatformDefinition,
+  type PlatformDefinition,
+} from '@/components/platform-selector';
 import { MetricsSummary } from '@/components/metrics-summary';
 import { Podium } from '@/components/podium';
 import { ArtistModal } from '@/components/artist-modal';
 import { RemainingArtistsPanel } from '@/components/remaining-artists-panel';
 import { songsLabel } from '@/lib/format';
+import { buildShareUrl, decodeSharePayload } from '@/lib/share/url-codec';
 
 interface AnalyzeResponse {
   platform: PlatformType;
@@ -43,6 +50,39 @@ const PLATFORM_LABELS: Record<PlatformType, string> = {
   youtube_music: 'YouTube Music',
   spotify: 'Spotify',
 };
+
+type ShareButtonState = 'idle' | 'copying' | 'copied' | 'error';
+
+interface SharedBanner {
+  tone: 'info' | 'error';
+  message: string;
+}
+
+/**
+ * Copia texto al portapapeles con fallback para navegadores que no exponen
+ * la API asíncrona (o contextos sin permisos).
+ */
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textarea);
+
+  if (!copied) {
+    throw new Error('No se pudo copiar el enlace.');
+  }
+}
 
 function TrackCover({ src, title }: { src?: string; title: string }) {
   const [failed, setFailed] = useState(false);
@@ -75,9 +115,58 @@ export default function HomePage() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [showTracks, setShowTracks] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState<SelectedArtist | null>(null);
+  const [shareState, setShareState] = useState<ShareButtonState>('idle');
+  const [sharedBanner, setSharedBanner] = useState<SharedBanner | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const shareResetRef = useRef<number | null>(null);
 
   const closeArtistModal = useCallback(() => setSelectedArtist(null), []);
+
+  // Hidrata la vista directamente desde un enlace compartido (?share=...),
+  // sin pegar la URL de la playlist ni volver a ejecutar la extracción.
+  useEffect(() => {
+    const sharedParam = new URLSearchParams(window.location.search).get('share');
+    if (!sharedParam) return;
+
+    const decoded = decodeSharePayload(sharedParam);
+    if (!decoded.ok) {
+      setSharedBanner({
+        tone: 'error',
+        message:
+          'El enlace compartido no es válido o está incompleto. Pega el enlace original de la playlist y analízala de nuevo.',
+      });
+      return;
+    }
+
+    const { payload } = decoded;
+    setResult({
+      platform: payload.platform,
+      playlistId: payload.playlistId,
+      playlistTitle: payload.playlistTitle,
+      totalTracks: payload.stats.totalTracks,
+      stats: payload.stats,
+      tracks: [],
+    });
+    setShowTracks(false);
+    setSelectedArtist(null);
+    setError(null);
+
+    const sharedPlatform = getPlatformDefinition(payload.platform);
+    if (sharedPlatform?.available) setPlatform(sharedPlatform);
+
+    setSharedBanner({
+      tone: 'info',
+      message: 'Mostrando los resultados guardados en este enlace compartido.',
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (shareResetRef.current !== null) {
+        window.clearTimeout(shareResetRef.current);
+      }
+    };
+  }, []);
 
   function handleSelectPlatform(nextPlatform: PlatformDefinition) {
     if (!nextPlatform.available || loading) return;
@@ -100,9 +189,37 @@ export default function HomePage() {
     inputRef.current?.focus();
   }
 
+  async function handleCopyShareLink() {
+    if (!result || shareState === 'copying') return;
+
+    if (shareResetRef.current !== null) {
+      window.clearTimeout(shareResetRef.current);
+      shareResetRef.current = null;
+    }
+
+    setShareState('copying');
+
+    try {
+      const shareUrl = buildShareUrl(window.location.href, {
+        platform: result.platform,
+        playlistId: result.playlistId,
+        playlistTitle: result.playlistTitle,
+        stats: result.stats,
+      });
+      await copyTextToClipboard(shareUrl);
+      setShareState('copied');
+      shareResetRef.current = window.setTimeout(() => setShareState('idle'), 3_000);
+    } catch {
+      setShareState('error');
+      shareResetRef.current = window.setTimeout(() => setShareState('idle'), 4_000);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setSharedBanner(null);
+    setShareState('idle');
 
     const trimmedUrl = url.trim();
     if (!trimmedUrl) {
@@ -342,6 +459,43 @@ export default function HomePage() {
             )}
           </AnimatePresence>
 
+          <AnimatePresence initial={false}>
+            {sharedBanner && (
+              <motion.div
+                key="shared-banner"
+                role={sharedBanner.tone === 'error' ? 'alert' : 'status'}
+                initial={{ opacity: 0, y: -8, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: 'auto' }}
+                exit={{ opacity: 0, y: -8, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div
+                  className={`flex items-start gap-3 rounded-2xl border p-3.5 text-xs ${
+                    sharedBanner.tone === 'error'
+                      ? 'border-amber-500/30 bg-amber-950/30 text-amber-200'
+                      : 'border-sky-400/25 bg-sky-400/5 text-sky-200'
+                  }`}
+                >
+                  {sharedBanner.tone === 'error' ? (
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <Link2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  )}
+                  <p className="min-w-0 flex-1 break-words">{sharedBanner.message}</p>
+                  <button
+                    type="button"
+                    onClick={() => setSharedBanner(null)}
+                    aria-label="Cerrar aviso del enlace compartido"
+                    className="rounded-lg p-1 text-current opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <AnimatePresence mode="wait">
             {result && (
               <motion.div
@@ -374,20 +528,58 @@ export default function HomePage() {
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResult(null);
-                      setShowTracks(false);
-                      setError(null);
-                      setUrl('');
-                      inputRef.current?.focus();
-                    }}
-                    className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                    Analizar otra playlist
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyShareLink}
+                      disabled={shareState === 'copying'}
+                      aria-label="Copiar enlace para compartir"
+                      className={`inline-flex w-fit items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 disabled:cursor-wait disabled:opacity-70 ${
+                        shareState === 'copied'
+                          ? 'border-emerald-300/70 bg-emerald-400/20 text-emerald-100'
+                          : shareState === 'error'
+                            ? 'border-red-400/40 bg-red-500/10 text-red-200'
+                            : 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200 hover:border-emerald-300/70 hover:text-emerald-100'
+                      }`}
+                    >
+                      {shareState === 'copied' ? (
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      ) : shareState === 'copying' ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      {shareState === 'copied'
+                        ? 'Enlace copiado'
+                        : shareState === 'error'
+                          ? 'No se pudo copiar'
+                          : 'Copiar enlace'}
+                    </button>
+                    <span className="sr-only" role="status" aria-live="polite">
+                      {shareState === 'copied'
+                        ? 'Enlace copiado al portapapeles.'
+                        : shareState === 'error'
+                          ? 'No se pudo copiar el enlace al portapapeles.'
+                          : ''}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResult(null);
+                        setShowTracks(false);
+                        setError(null);
+                        setUrl('');
+                        setSharedBanner(null);
+                        setShareState('idle');
+                        inputRef.current?.focus();
+                      }}
+                      className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                      Analizar otra playlist
+                    </button>
+                  </div>
                 </section>
 
                 <MetricsSummary stats={result.stats} onSelectArtist={handleSelectArtist} />
