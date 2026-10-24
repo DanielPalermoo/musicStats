@@ -5,6 +5,14 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "MusicStats — Tu playlist, en estadísticas",
   description: "Analiza cualquier playlist pública de YouTube Music, Spotify, Deezer o SoundCloud y conviértela en estadísticas, podios y tarjetas para compartir.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-light-32x32.png", media: "(prefers-color-scheme: light)" },
+      { url: "/icon-dark-32x32.png", media: "(prefers-color-scheme: dark)" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
