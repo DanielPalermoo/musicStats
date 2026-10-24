@@ -323,7 +323,8 @@ export class SoundCloudExtractor implements PlaylistExtractor {
     // 1) Estado embebido en el HTML público del set.
     const hydratedPlaylist = this.findPlaylist(this.parseHydration(page.html));
     if (hydratedPlaylist) {
-      const result = this.mapPlaylist(hydratedPlaylist, playlistId);
+      const hydratedWithTracks = await this.hydrateTrackStubs(hydratedPlaylist, page.html);
+      const result = this.mapPlaylist(hydratedWithTracks, playlistId);
       if (result) return result;
 
       // El set existe pero está vacío: no tiene sentido intentar la API.
@@ -337,7 +338,7 @@ export class SoundCloudExtractor implements PlaylistExtractor {
     const errors: Error[] = [];
 
     // 2) API v2 con el client_id público extraído de la propia página.
-    const clientId = this.extractClientId(page.html);
+    const clientId = await this.resolveClientId(page.html);
     if (clientId) {
       try {
         return await this.fetchViaApiV2(setUrl, playlistId, clientId);
@@ -475,6 +476,128 @@ export class SoundCloudExtractor implements PlaylistExtractor {
   }
 
   /**
+   * Determina si un elemento de la lista de tracks es un stub (contiene ID pero carece de título).
+   */
+  private isTrackStub(item: any): boolean {
+    if (!item || typeof item !== 'object') return false;
+    const hasId =
+      typeof item.id === 'number' ||
+      (typeof item.id === 'string' && item.id.trim().length > 0);
+    const lacksTitle =
+      item.title === undefined ||
+      item.title === null ||
+      (typeof item.title === 'string' && item.title.trim().length === 0);
+    return hasId && lacksTitle;
+  }
+
+  /**
+   * Hidrata en bloques de hasta 50 IDs las pistas que vienen incompletas (stubs) usando API v2.
+   */
+  private async hydrateTrackStubs(
+    playlist: any,
+    html?: string | null,
+    knownClientId?: string | null
+  ): Promise<any> {
+    const rawTracks = Array.isArray(playlist?.tracks)
+      ? playlist.tracks
+      : Array.isArray(playlist?.collection)
+        ? playlist.collection
+        : [];
+
+    if (!rawTracks.some((item: any) => this.isTrackStub(item))) {
+      return playlist;
+    }
+
+    const clientId = knownClientId || (await this.resolveClientId(html));
+    if (!clientId) {
+      return playlist;
+    }
+
+    const stubIds: string[] = [];
+    for (const item of rawTracks) {
+      if (this.isTrackStub(item)) {
+        stubIds.push(String(item.id));
+      }
+    }
+
+    const uniqueStubIds = [...new Set(stubIds)];
+    const fetchedMap = new Map<string, any>();
+    const CHUNK_SIZE = 50;
+
+    for (let i = 0; i < uniqueStubIds.length; i += CHUNK_SIZE) {
+      const chunk = uniqueStubIds.slice(i, i + CHUNK_SIZE).join(',');
+      try {
+        const url = `${API_V2_BASE_URL}/tracks?ids=${chunk}&client_id=${encodeURIComponent(clientId)}`;
+        const response = await fetch(url, { headers: API_HEADERS });
+        if (response.ok) {
+          const items = await response.json();
+          if (Array.isArray(items)) {
+            for (const item of items) {
+              if (item && item.id !== undefined && item.id !== null) {
+                fetchedMap.set(String(item.id), item);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Continuar defensivamente si un lote falla
+      }
+    }
+
+    const hydratedTracks = rawTracks.map((item: any) => {
+      if (this.isTrackStub(item)) {
+        const full = fetchedMap.get(String(item.id));
+        return full ?? item;
+      }
+      return item;
+    });
+
+    return {
+      ...playlist,
+      tracks: hydratedTracks,
+    };
+  }
+
+  /**
+   * Obtiene el client_id público buscando en el HTML y luego en los scripts referenciados.
+   */
+  private async resolveClientId(html?: string | null): Promise<string | null> {
+    if (!html || typeof html !== 'string') return null;
+
+    const direct = this.extractClientId(html);
+    if (direct) return direct;
+
+    const scriptUrls = this.extractScriptUrls(html);
+    for (const scriptUrl of scriptUrls) {
+      try {
+        const response = await fetch(scriptUrl, { headers: SOUNDCLOUD_HEADERS });
+        if (response.ok) {
+          const content = await response.text();
+          const fromScript = this.extractClientId(content);
+          if (fromScript) return fromScript;
+        }
+      } catch {
+        // Continuar con el siguiente script si uno falla
+      }
+    }
+
+    return null;
+  }
+
+  private extractScriptUrls(html: string): string[] {
+    const urls: string[] = [];
+    const scriptRegex = /<script[^>]+src=["']([^"']+\.js(?:[^"']*)?)["']/gi;
+    let match: RegExpExecArray | null;
+    while ((match = scriptRegex.exec(html)) !== null) {
+      const src = match[1];
+      if (src && !urls.includes(src)) {
+        urls.push(src);
+      }
+    }
+    return urls;
+  }
+
+  /**
    * Busca el `client_id` público que SoundCloud publica en sus scripts.
    */
   private extractClientId(html: string): string | null {
@@ -482,6 +605,7 @@ export class SoundCloudExtractor implements PlaylistExtractor {
       /client_id\s*[:=]\s*["']([A-Za-z0-9]{20,})["']/i,
       /"client_id"\s*:\s*"([A-Za-z0-9]{20,})"/i,
       /client_id=([A-Za-z0-9]{20,})/i,
+      /clientId\s*[:=]\s*["']([A-Za-z0-9]{20,})["']/i,
     ];
 
     for (const pattern of patterns) {
@@ -491,6 +615,7 @@ export class SoundCloudExtractor implements PlaylistExtractor {
 
     return null;
   }
+
 
   private async fetchViaApiV2(
     setUrl: string,
@@ -522,13 +647,19 @@ export class SoundCloudExtractor implements PlaylistExtractor {
     // y marca la respuesta con `stub: true`; el resto se completa consultando el
     // endpoint de pistas del playlist.
     if (!playlist.stub) {
-      const direct = this.mapPlaylist(playlist, playlistId);
+      const hydratedWithTracks = await this.hydrateTrackStubs(playlist, null, clientId);
+      const direct = this.mapPlaylist(hydratedWithTracks, playlistId);
       if (direct) return direct;
     }
 
     if (playlist.id !== undefined && playlist.id !== null) {
       const rawTracks = await this.fetchPlaylistTracks(String(playlist.id), clientId);
-      const completed = this.mapPlaylist({ ...playlist, tracks: rawTracks }, playlistId);
+      const completedPlaylist = await this.hydrateTrackStubs(
+        { ...playlist, tracks: rawTracks },
+        null,
+        clientId
+      );
+      const completed = this.mapPlaylist(completedPlaylist, playlistId);
       if (completed) return completed;
     }
 
@@ -591,7 +722,8 @@ export class SoundCloudExtractor implements PlaylistExtractor {
     const playlist = this.findPlaylist(this.parseHydration(html));
     if (!playlist) return null;
 
-    return this.mapPlaylist(playlist, playlistId);
+    const hydratedWithTracks = await this.hydrateTrackStubs(playlist, html);
+    return this.mapPlaylist(hydratedWithTracks, playlistId);
   }
 
   /**

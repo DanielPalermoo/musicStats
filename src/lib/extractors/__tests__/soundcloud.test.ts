@@ -442,3 +442,114 @@ describe('SoundCloudExtractor.extract (errores)', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// extract: hidratación de track stubs en sets extensos (> 5 canciones)
+// ---------------------------------------------------------------------------
+
+describe('SoundCloudExtractor.extract (hidratación de track stubs en sets extensos)', () => {
+  it('hidrata track stubs en bloques de 50 cuando la playlist tiene más de 5 temas (ej: 74 temas)', async () => {
+    // 5 temas completos iniciales
+    const fullTracks = [
+      scTrack(1, 'Track 1', 'Artist 1'),
+      scTrack(2, 'Track 2', 'Artist 2'),
+      scTrack(3, 'Track 3', 'Artist 3'),
+      scTrack(4, 'Track 4', 'Artist 4'),
+      scTrack(5, 'Track 5', 'Artist 5'),
+    ];
+
+    // 69 stubs que solo contienen id
+    const stubs: any[] = [];
+    for (let id = 6; id <= 74; id++) {
+      stubs.push({ id });
+    }
+
+    const allSetTracks = [...fullTracks, ...stubs];
+    expect(allSetTracks).toHaveLength(74);
+
+    const playlist = playlistData(allSetTracks, {
+      title: 'Celebrating 30 Years of MOBO',
+    });
+
+    const pageHtml =
+      '<!DOCTYPE html><html><head><title>MOBO 30</title></head><body>' +
+      `<script>window.__sc_hydration = ${JSON.stringify(hydrationFor(playlist))};</script>` +
+      `<script>window.__clientId = "${CLIENT_ID}";</script>` +
+      '</body></html>';
+
+    const calls = mockFetch([
+      { match: SET_PAGE_URL, response: html(pageHtml) },
+      {
+        match: 'https://api-v2.soundcloud.com/tracks?ids=',
+        response: (call: any) => {
+          const urlObj = new URL(call.url);
+          const idsParam = urlObj.searchParams.get('ids') || '';
+          const ids = idsParam.split(',').filter(Boolean);
+          const returnedTracks = ids.map((id) =>
+            scTrack(Number(id), `Track ${id}`, `Artist ${id}`)
+          );
+          return jsonResponse(returnedTracks);
+        },
+      },
+    ]);
+
+    const result = await extractor.extract(SET_PAGE_URL);
+
+    expect(result.platform).toBe('soundcloud');
+    expect(result.playlistTitle).toBe('Celebrating 30 Years of MOBO');
+    expect(result.totalTracks).toBe(74);
+    expect(result.tracks).toHaveLength(74);
+
+    // Verificar que los primeros 5 y los restantes conservan su orden y datos
+    expect(result.tracks[0].title).toBe('Track 1');
+    expect(result.tracks[4].title).toBe('Track 5');
+    expect(result.tracks[5].title).toBe('Track 6');
+    expect(result.tracks[73].title).toBe('Track 74');
+
+    // Verificar que se hicieron exactamente 2 llamadas por chunks de hasta 50 IDs (50 + 19 = 69)
+    const trackCalls = calls.calls.filter((c) =>
+      c.url.startsWith('https://api-v2.soundcloud.com/tracks?ids=')
+    );
+    expect(trackCalls).toHaveLength(2);
+
+    const firstChunkIds = new URL(trackCalls[0].url).searchParams.get('ids')?.split(',') || [];
+    const secondChunkIds = new URL(trackCalls[1].url).searchParams.get('ids')?.split(',') || [];
+    expect(firstChunkIds).toHaveLength(50);
+    expect(secondChunkIds).toHaveLength(19);
+  });
+
+  it('obtiene client_id extrayéndolo de un script externo cuando no viene en el HTML inicial', async () => {
+    const rawTracks = [
+      scTrack(1, 'Track 1', 'Artist 1'),
+      { id: 2 }, // stub
+    ];
+
+    const playlist = playlistData(rawTracks, { title: 'Set Con Scripts Externos' });
+
+    const pageHtml =
+      '<!DOCTYPE html><html><head>' +
+      '<script crossorigin src="https://a-v2.sndcdn.com/assets/vendor-bundle.js"></script>' +
+      '</head><body>' +
+      `<script>window.__sc_hydration = ${JSON.stringify(hydrationFor(playlist))};</script>` +
+      '</body></html>';
+
+    mockFetch([
+      { match: SET_PAGE_URL, response: html(pageHtml) },
+      {
+        match: 'https://a-v2.sndcdn.com/assets/vendor-bundle.js',
+        response: html(`var env = { client_id: "${CLIENT_ID}" };`),
+      },
+      {
+        match: 'https://api-v2.soundcloud.com/tracks?ids=2',
+        response: json([scTrack(2, 'Track 2 Hidratado', 'Artist 2')]),
+      },
+    ]);
+
+    const result = await extractor.extract(SET_PAGE_URL);
+
+    expect(result.totalTracks).toBe(2);
+    expect(result.tracks).toHaveLength(2);
+    expect(result.tracks[0].title).toBe('Track 1');
+    expect(result.tracks[1].title).toBe('Track 2 Hidratado');
+  });
+});
