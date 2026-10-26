@@ -133,6 +133,18 @@ describe('extractCollaborators', () => {
     ]);
   });
 
+  it('no separa bandas inseparables con "y sus", "y su", "y los", "y las"', () => {
+    expect(
+      extractCollaborators('Patricio Rey y sus Redonditos de Ricota')
+    ).toEqual(['Patricio Rey y sus Redonditos de Ricota']);
+    expect(extractCollaborators('Carlos Santana y su Banda')).toEqual([
+      'Carlos Santana y su Banda',
+    ]);
+    expect(extractCollaborators('Banda y los Músicos')).toEqual([
+      'Banda y los Músicos',
+    ]);
+  });
+
   it('separa por "x" cuando va entre nombres', () => {
     expect(extractCollaborators('KAROL G x TIAGO PZK')).toEqual([
       'KAROL G',
@@ -186,9 +198,9 @@ describe('extractCollaboratorsFromTitle', () => {
   });
 
   it('extrae colaboradores de corchetes con keyword', () => {
-    expect(extractCollaboratorsFromTitle('Canción [feat. Artista B]')).toEqual(
-      ['Artista B']
-    );
+    expect(extractCollaboratorsFromTitle('Canción [feat. Artista B]')).toEqual([
+      'Artista B',
+    ]);
     expect(extractCollaboratorsFromTitle('Canción [with Artista B]')).toEqual([
       'Artista B',
     ]);
@@ -214,6 +226,30 @@ describe('extractCollaboratorsFromTitle', () => {
     expect(
       extractCollaboratorsFromTitle('Canción (feat. Artista A, Artista A)')
     ).toEqual(['Artista A']);
+  });
+
+  it('no confunde conjunciones "y" / "x" en títulos planos en español con colaboraciones', () => {
+    expect(extractCollaboratorsFromTitle('Toco y me voy')).toEqual([]);
+    expect(extractCollaboratorsFromTitle('Amor y control')).toEqual([]);
+    expect(extractCollaboratorsFromTitle('Lluvia y fuego')).toEqual([]);
+    expect(extractCollaboratorsFromTitle('Día y noche')).toEqual([]);
+    expect(extractCollaboratorsFromTitle('Toco y me voy (En vivo)')).toEqual([]);
+    expect(extractCollaboratorsFromTitle('Hunter x Hunter')).toEqual([]);
+  });
+
+  it('permite que "y" y "x" separen colaboradores cuando la colaboración está explícita o en formato artista con guion', () => {
+    expect(
+      extractCollaboratorsFromTitle('Canción (feat. Artista A y Artista B)')
+    ).toEqual(['Artista A', 'Artista B']);
+    expect(
+      extractCollaboratorsFromTitle('Canción (feat. Artista A x Artista B)')
+    ).toEqual(['Artista A', 'Artista B']);
+    expect(
+      extractCollaboratorsFromTitle('Canción ft. Artista B & Artista C')
+    ).toEqual(['Artista B', 'Artista C']);
+    expect(
+      extractCollaboratorsFromTitle('Artista A x Artista B - Canción')
+    ).toEqual(['Artista B']);
   });
 
   it('devuelve [] cuando el título no tiene colaboradores', () => {
@@ -269,6 +305,28 @@ describe('getTrackArtists', () => {
       'Artista A',
       'Artista B',
       'Artista C',
+    ]);
+  });
+
+  it('no fragmenta a Patricio Rey y sus Redonditos de Ricota ni crea artistas a partir de Toco y me voy', () => {
+    const track = makeTrack({
+      id: '1',
+      title: 'Toco y me voy',
+      mainArtist: 'Bersuit Vergarabat',
+      allArtists: ['Bersuit Vergarabat'],
+    });
+    expect(getTrackArtists(track).map((a) => a.displayName)).toEqual([
+      'Bersuit Vergarabat',
+    ]);
+
+    const trackRedondos = makeTrack({
+      id: '2',
+      title: 'Todo un palo',
+      mainArtist: 'Patricio Rey y sus Redonditos de Ricota',
+      allArtists: ['Patricio Rey y sus Redonditos de Ricota'],
+    });
+    expect(getTrackArtists(trackRedondos).map((a) => a.displayName)).toEqual([
+      'Patricio Rey y sus Redonditos de Ricota',
     ]);
   });
 });

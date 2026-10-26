@@ -140,6 +140,7 @@ const PLATFORM_CODES: Record<PlatformType, string> = {
   spotify: 's',
   deezer: 'd',
   soundcloud: 'c',
+  tidal: 't',
 };
 
 const PLATFORM_BY_CODE: Record<string, PlatformType> = {
@@ -147,6 +148,7 @@ const PLATFORM_BY_CODE: Record<string, PlatformType> = {
   s: 'spotify',
   d: 'deezer',
   c: 'soundcloud',
+  t: 'tidal',
 };
 
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;

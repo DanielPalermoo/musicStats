@@ -75,6 +75,17 @@ export const PLATFORM_CATALOG: PlatformDefinition[] = [
     iconClass: 'text-orange-400',
     selectedRing: 'border-orange-400/70 shadow-[0_0_35px_-10px_rgba(251,146,60,0.65)]',
   },
+  {
+    id: 'tidal',
+    name: 'Tidal',
+    description: 'Playlists públicas de Tidal con enlace browse o listen.',
+    available: true,
+    placeholder: 'https://tidal.com/browse/playlist/...',
+    icon: AudioLines,
+    cardGradient: 'from-cyan-500/25 via-cyan-500/5 to-transparent',
+    iconClass: 'text-cyan-400',
+    selectedRing: 'border-cyan-400/70 shadow-[0_0_35px_-10px_rgba(34,211,238,0.65)]',
+  },
 ];
 
 export function getPlatformDefinition(id: PlatformId): PlatformDefinition | undefined {
@@ -202,6 +213,22 @@ const SOUNDCLOUD_RESERVED_SEGMENTS = new Set([
   'jobs',
 ]);
 
+function validateTidal(rawUrl: string): string | null {
+  const parsed = parseHttpUrl(rawUrl);
+  if (typeof parsed === 'string') return parsed;
+
+  const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+  if (host !== 'tidal.com' && host !== 'listen.tidal.com') {
+    return 'Ese enlace no parece ser de Tidal. Usa un enlace de tidal.com o listen.tidal.com.';
+  }
+
+  if (!/(?:browse\/)?playlist\/[0-9a-fA-F-]{36}/i.test(parsed.pathname)) {
+    return 'El enlace de Tidal debe apuntar a una playlist (/playlist/UUID).';
+  }
+
+  return null;
+}
+
 function validateSoundCloud(rawUrl: string): string | null {
   const parsed = parseHttpUrl(rawUrl);
   if (typeof parsed === 'string') return parsed;
@@ -250,6 +277,8 @@ export function validatePlaylistUrl(platformId: PlatformId, rawUrl: string): str
       return validateDeezer(url);
     case 'soundcloud':
       return validateSoundCloud(url);
+    case 'tidal':
+      return validateTidal(url);
     default:
       return 'La plataforma seleccionada no está soportada.';
   }

@@ -63,7 +63,7 @@ export function TracklistPanel() {
               <span className="text-right text-sm text-muted-foreground tabular-nums group-hover:text-emerald-400">
                 {i + 1}
               </span>
-              <CoverArt seed={track.title} />
+              <CoverArt seed={track.title} imageUrl={track.coverUrl} />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-zinc-100">{track.title}</p>
                 <p className="truncate text-xs">
@@ -107,7 +107,7 @@ export function OtherArtistsPanel() {
                 <span className="inline-flex h-6 items-center justify-center rounded-md bg-white/5 text-xs font-semibold text-zinc-300 tabular-nums ring-1 ring-white/10">
                   {artist.rank}°
                 </span>
-                <ArtistAvatar name={artist.name} />
+                <ArtistAvatar name={artist.name} imageUrl={artist.imageUrl} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-zinc-100">{artist.name}</span>
                   <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/5">

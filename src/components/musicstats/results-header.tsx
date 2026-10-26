@@ -31,7 +31,7 @@ export function ResultsHeader({ onDownload }: { onDownload: () => void }) {
     <div className="glass animate-rise flex flex-col gap-5 rounded-2xl p-4 md:flex-row md:items-center md:p-5">
       <div className="flex min-w-0 flex-1 items-center gap-4">
         <div className="relative">
-          <CoverArt seed={playlist.title} className="size-16 rounded-xl md:size-20" />
+          <CoverArt seed={playlist.title} imageUrl={analysis.tracks[0]?.coverUrl} className="size-16 rounded-xl md:size-20" />
           <span
             className="absolute -right-1.5 -bottom-1.5 flex size-7 items-center justify-center rounded-full border-2 border-[#09090b] bg-zinc-900"
             style={{ color: platform.color }}

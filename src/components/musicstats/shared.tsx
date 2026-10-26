@@ -78,7 +78,7 @@ export function MiniTrackList({ trackIds, limit }: { trackIds: string[]; limit?:
         if (!track) return null
         return (
           <li key={id} className="flex items-center gap-2.5">
-            <CoverArt seed={track.title} className="size-8" />
+            <CoverArt seed={track.title} imageUrl={track.coverUrl} className="size-8" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-zinc-100">{track.title}</p>
               <p className="truncate text-xs text-muted-foreground">{track.artists.join(', ')}</p>

@@ -37,6 +37,7 @@ function PodiumColumn({ artist, place }: { artist: ArtistStat; place: 1 | 2 | 3 
           )}
           <ArtistAvatar
             name={artist.name}
+            imageUrl={artist.imageUrl}
             ring={cfg.color}
             className={cn(
               'transition-transform duration-300 group-hover:-translate-y-1',

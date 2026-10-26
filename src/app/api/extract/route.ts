@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Por ahora aceptamos URLs de playlists públicas de Spotify, YouTube / YouTube Music, Deezer y SoundCloud.',
+            'Por ahora aceptamos URLs de playlists públicas de Spotify, YouTube / YouTube Music, Deezer, SoundCloud y Tidal.',
         },
         { status: 400 }
       );

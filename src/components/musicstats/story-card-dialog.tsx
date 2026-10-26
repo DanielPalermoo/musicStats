@@ -55,6 +55,7 @@ function StoryCard() {
             <div key={a.name} className="flex w-[92px] flex-col items-center">
               <ArtistAvatar
                 name={a.name}
+                imageUrl={a.imageUrl}
                 ring={MEDALS[place]}
                 className={place === 0 ? 'size-16 text-lg' : 'size-12 text-sm'}
               />

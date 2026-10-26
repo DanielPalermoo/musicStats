@@ -19,6 +19,14 @@ export function ArtistSheet({ name, onClose }: { name: string | null; onClose: (
         {artist && (
           <>
             <div className="relative h-40 shrink-0 overflow-hidden" style={{ backgroundImage: gradientFor(artist.name) }}>
+              {artist.imageUrl && (
+                <img
+                  src={artist.imageUrl}
+                  alt=""
+                  aria-hidden
+                  className="absolute inset-0 size-full object-cover opacity-25 blur-sm"
+                />
+              )}
               <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/30 to-[#0d0e12]" />
               <div
                 aria-hidden
@@ -33,6 +41,7 @@ export function ArtistSheet({ name, onClose }: { name: string | null; onClose: (
             <div className="relative -mt-14 px-5">
               <ArtistAvatar
                 name={artist.name}
+                imageUrl={artist.imageUrl}
                 className="size-24 text-2xl"
                 ring={artist.rank === 1 ? '#f59e0b' : artist.rank === 2 ? '#cbd5e1' : artist.rank === 3 ? '#d97745' : '#27272a'}
               />
@@ -72,7 +81,7 @@ export function ArtistSheet({ name, onClose }: { name: string | null; onClose: (
                         onClick={() => openArtist(c.name)}
                         className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] py-0.5 pr-2.5 pl-0.5 text-xs text-zinc-200 ring-1 ring-white/10 hover:bg-white/[0.08]"
                       >
-                        <ArtistAvatar name={c.name} className="size-5 text-[8px]" />
+                        <ArtistAvatar name={c.name} imageUrl={artistByName.get(c.name)?.imageUrl} className="size-5 text-[8px]" />
                         {c.name}
                         <span className="text-emerald-400">{c.trackIds.length}</span>
                       </button>
@@ -93,7 +102,7 @@ export function ArtistSheet({ name, onClose }: { name: string | null; onClose: (
                   const isMain = t.artists[0] === artist.name
                   return (
                     <li key={id} className="flex items-center gap-3 rounded-xl p-2 hover:bg-white/[0.03]">
-                      <CoverArt seed={t.title} />
+                      <CoverArt seed={t.title} imageUrl={t.coverUrl} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-zinc-100">{t.title}</p>
                         <p className="truncate text-xs text-muted-foreground">{t.artists.join(', ')}</p>

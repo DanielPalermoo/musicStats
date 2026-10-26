@@ -8,7 +8,7 @@ import { ArtistAvatar, CoverArt, EqualizerBars } from './artwork'
 import { TracksHoverCard } from './shared'
 
 export function TopArtistCard() {
-  const { analysis, trackById, openArtist } = useAnalysis()
+  const { analysis, trackById, openArtist, artistByName } = useAnalysis()
   const [showCollabs, setShowCollabs] = useState(true)
   const top = analysis.artists[0]
   if (!top) return null
@@ -37,6 +37,7 @@ export function TopArtistCard() {
         >
           <ArtistAvatar
             name={top.name}
+            imageUrl={top.imageUrl}
             ring="#f59e0b"
             className="size-28 text-3xl transition-transform group-hover:scale-[1.03] md:size-32"
           />
@@ -80,7 +81,7 @@ export function TopArtistCard() {
           <ul className="mt-4 grid gap-2 sm:grid-cols-2">
             {featured.map((t) => (
               <li key={t.id} className="flex items-center gap-2.5 rounded-xl bg-white/[0.03] p-2 ring-1 ring-white/5">
-                <CoverArt seed={t.title} className="size-9" />
+                <CoverArt seed={t.title} imageUrl={t.coverUrl} className="size-9" />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-zinc-100">{t.title}</p>
                   <p className="truncate text-xs text-muted-foreground">{t.artists.join(', ')}</p>
@@ -118,7 +119,7 @@ export function TopArtistCard() {
                     onClick={() => openArtist(c.name)}
                     triggerClassName="inline-flex items-center gap-2 rounded-full bg-white/[0.04] py-1 pr-3 pl-1 text-sm text-zinc-200 ring-1 ring-white/10 transition-colors hover:bg-white/[0.08] hover:ring-emerald-400/40"
                   >
-                    <ArtistAvatar name={c.name} className="size-6 text-[10px]" />
+                    <ArtistAvatar name={c.name} imageUrl={artistByName.get(c.name)?.imageUrl} className="size-6 text-[10px]" />
                     {c.name}
                     <span className="rounded-full bg-emerald-500/15 px-1.5 text-xs font-semibold text-emerald-300 tabular-nums">
                       {c.trackIds.length}

@@ -30,7 +30,7 @@ export function SearchHero({ platform, onPlatformChange, onSubmit, loading, erro
     }
     const found = detectPlatform(url)
     if (!found) {
-      setLocalError('Ese enlace no parece de YouTube Music, Spotify, Deezer o SoundCloud.')
+      setLocalError('Ese enlace no parece de YouTube Music, Spotify, Deezer, SoundCloud o Tidal.')
       return
     }
     setLocalError(undefined)

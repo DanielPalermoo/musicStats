@@ -16,6 +16,7 @@ export function normalizePlatform(platform: PlatformType | PlatformId | string):
   if (platform === 'spotify') return 'spotify'
   if (platform === 'deezer') return 'deezer'
   if (platform === 'soundcloud') return 'soundcloud'
+  if (platform === 'tidal') return 'tidal'
   return 'youtube'
 }
 
@@ -57,19 +58,46 @@ export function adaptAnalyzeResponse(
           : ['Desconocido']
 
     const duration = parseDurationToSeconds(t.durationMs, t.durationText, 180)
+    const coverUrl = t.coverUrl || t.thumbnailUrl
 
     return {
       id: t.id || `t${idx + 1}`,
       title: t.title || `Pista ${idx + 1}`,
       artists,
       duration,
+      coverUrl,
     }
   })
 
-  // Map each track id to its artists for quick lookup
+  // Map each track id to its artists and track object for quick lookup
+  const trackMap = new Map<string, Track>()
   const trackArtistsMap = new Map<string, string[]>()
   for (const track of tracks) {
+    trackMap.set(track.id, track)
     trackArtistsMap.set(track.id, track.artists)
+  }
+
+  // Helper to derive artist imageUrl prioritizing tracks where they are main artist
+  const getArtistImage = (artistName: string, artistTrackIds: string[]): string | undefined => {
+    const lowerName = artistName.toLowerCase().trim()
+
+    // 1. Try tracks where this artist is main artist (artists[0]) and has a coverUrl
+    for (const tid of artistTrackIds) {
+      const track = trackMap.get(tid)
+      if (track?.coverUrl && track.artists[0]?.toLowerCase().trim() === lowerName) {
+        return track.coverUrl
+      }
+    }
+
+    // 2. Try any track where artist appears that has a coverUrl
+    for (const tid of artistTrackIds) {
+      const track = trackMap.get(tid)
+      if (track?.coverUrl) {
+        return track.coverUrl
+      }
+    }
+
+    return undefined
   }
 
   // 2. Build CollabEdge map from tracks
@@ -128,6 +156,7 @@ export function adaptAnalyzeResponse(
         featCount: artist.featuredTrackCount,
         trackIds,
         collaborators,
+        imageUrl: getArtistImage(artist.name, trackIds),
       }
     })
   } else {
@@ -187,6 +216,7 @@ export function adaptAnalyzeResponse(
         collaborators: [...data.collabMap.entries()]
           .map(([cName, cIds]) => ({ name: cName, trackIds: cIds }))
           .sort((a, b) => b.trackIds.length - a.trackIds.length || a.name.localeCompare(b.name)),
+        imageUrl: getArtistImage(name, data.trackIds),
       }))
   }
 
@@ -201,7 +231,9 @@ export function adaptAnalyzeResponse(
         ? 'YouTube Music'
         : platform === 'deezer'
           ? 'Deezer'
-          : 'SoundCloud'
+          : platform === 'soundcloud'
+            ? 'SoundCloud'
+            : 'Tidal'
 
   return {
     playlist: {

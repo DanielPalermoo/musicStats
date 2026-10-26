@@ -2,13 +2,14 @@ import { ExtractorResult, PlaylistExtractor } from '@/types/playlist';
 import { DeezerExtractor } from './deezer';
 import { SoundCloudExtractor } from './soundcloud';
 import { SpotifyExtractor } from './spotify';
+import { TidalExtractor } from './tidal';
 import { YouTubeMusicExtractor } from './youtube-music';
 
 /**
  * Registro modular de adaptadores de plataformas.
  *
  * Permite resolver la plataforma a partir de la URL y añadir nuevos
- * extractores (Deezer, SoundCloud, Apple Music, etc.) sin tocar el resto
+ * extractores (Deezer, SoundCloud, Apple Music, Tidal, etc.) sin tocar el resto
  * de la lógica de extracción ni el motor de estadísticas.
  */
 export class PlatformRegistry {
@@ -51,7 +52,7 @@ export class PlatformRegistry {
     const extractor = this.getExtractor(url);
     if (!extractor) {
       throw new Error(
-        'La URL no corresponde a una plataforma soportada. Aceptamos playlists públicas de Spotify, YouTube Music, Deezer y SoundCloud.'
+        'La URL no corresponde a una plataforma soportada. Aceptamos playlists públicas de Spotify, YouTube Music, Deezer, SoundCloud y Tidal.'
       );
     }
 
@@ -63,4 +64,5 @@ export const platformRegistry = new PlatformRegistry()
   .register(new YouTubeMusicExtractor())
   .register(new SpotifyExtractor())
   .register(new DeezerExtractor())
-  .register(new SoundCloudExtractor());
+  .register(new SoundCloudExtractor())
+  .register(new TidalExtractor());

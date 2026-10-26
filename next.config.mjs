@@ -9,6 +9,10 @@ const nextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'i.ytimg.com',
+      },
+      {
+        protocol: 'https',
         hostname: '**.ggpht.com',
       },
       {
@@ -22,6 +26,22 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: '**.spotifycdn.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.dzcdn.net',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.sndcdn.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.tidal.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'resources.tidal.com',
       },
     ],
   },

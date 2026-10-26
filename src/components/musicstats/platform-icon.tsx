@@ -45,5 +45,11 @@ export function PlatformIcon({ platform, className }: Props) {
           <rect x="1.4" y="14" width="1.4" height="4" rx="0.7" />
         </svg>
       )
+    case 'tidal':
+      return (
+        <svg {...common} fill="currentColor">
+          <path d="M6 6l3 3-3 3-3-3zm6 0l3 3-3 3-3-3zm6 0l3 3-3 3-3-3zm-6 6l3 3-3 3-3-3z" />
+        </svg>
+      )
   }
 }

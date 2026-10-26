@@ -37,6 +37,13 @@ export const PLATFORMS: PlatformConfig[] = [
     hosts: ['soundcloud.com', 'www.soundcloud.com', 'on.soundcloud.com', 'm.soundcloud.com'],
     example: 'https://soundcloud.com/musicstats/sets/latin-heat',
   },
+  {
+    id: 'tidal',
+    name: 'Tidal',
+    color: '#00ffff',
+    hosts: ['tidal.com', 'www.tidal.com', 'listen.tidal.com'],
+    example: 'https://tidal.com/browse/playlist/94fe2b9b-096d-4b39-8129-d5b8e774e9b3',
+  },
 ]
 
 export const PLATFORM_MAP = Object.fromEntries(PLATFORMS.map((p) => [p.id, p])) as Record<

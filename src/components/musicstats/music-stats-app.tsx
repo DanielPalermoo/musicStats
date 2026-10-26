@@ -106,7 +106,7 @@ export function MusicStatsApp({ initialUrl }: { initialUrl?: string }) {
       </main>
 
       <footer className="border-t border-white/5 py-8 text-center text-xs text-muted-foreground">
-        <p>MusicStats · Compatible con YouTube Music, Spotify, Deezer y SoundCloud.</p>
+        <p>MusicStats · Compatible con YouTube Music, Spotify, Deezer, SoundCloud y Tidal.</p>
       </footer>
     </div>
   )

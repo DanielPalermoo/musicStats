@@ -26,6 +26,14 @@ const COLLAB_KEYWORD_TEST_REGEX = new RegExp(COLLAB_KEYWORDS_SOURCE, 'i');
 /** Regex global para reemplazar todas las keywords por un separador canónico. */
 const COLLAB_KEYWORDS_GLOBAL_REGEX = new RegExp(COLLAB_KEYWORDS_SOURCE, 'gi');
 
+/**
+ * Palabras clave que abren explícitamente una sección de colaboradores en un
+ * título. No incluye "x" ni "y" planas para evitar falsos positivos con títulos
+ * comunes en español (ej: "Toco y me voy", "Amor y control", "Lluvia y fuego").
+ */
+const TITLE_COLLAB_KEYWORDS_SOURCE = String.raw`\b(?:featuring|feat|ft|with|vs)\b\.?`;
+const TITLE_COLLAB_KEYWORD_TEST_REGEX = new RegExp(TITLE_COLLAB_KEYWORDS_SOURCE, 'i');
+
 /** Corchetes/quotes/guiones basura que pueden flotar alrededor de un nombre. */
 const LEADING_JUNK_REGEX = /^[-\s"'“”‘’«»(\[{·•*\u2013\u2014]+/;
 const TRAILING_JUNK_REGEX = /[-\s"'“”‘’«»)\]}·•*\u2013\u2014]+$/;
@@ -79,13 +87,21 @@ function cleanArtistSegment(segment: string): string {
 
 function isMeaningfulArtistSegment(segment: string): boolean {
   if (!segment) return false;
-  return !NOISE_SEGMENTS.has(segment.toLowerCase());
+  const lower = segment.toLowerCase().trim();
+  if (NOISE_SEGMENTS.has(lower)) return false;
+  // Descartar dígitos solos (ej. número de track "6", "01")
+  if (/^\d+$/.test(lower)) return false;
+  // Descartar si solo tiene signos de puntuación o símbolos
+  if (/^[^\w\s]+$/.test(lower)) return false;
+  return true;
 }
 
 /**
  * Reemplaza las palabras clave de colaboración por comas, salvo las letras
  * sueltas "x"/"y" en los extremos del string, que casi siempre son parte del
  * nombre del artista (ej. "Artist X") y no un separador.
+ * Además, previene la separación de bandas inseparables con "y sus", "y su",
+ * "y los", "y las", "y the" (ej. "Patricio Rey y sus Redonditos de Ricota").
  */
 function replaceKeywordsWithSeparators(text: string): string {
   return text.replace(
@@ -97,6 +113,10 @@ function replaceKeywordsWithSeparators(text: string): string {
         const after = whole.slice(offset + match.length);
         if (!/\S/.test(before) || !/\S/.test(after)) {
           return match; // "X"/"y" al inicio o final: no es separador.
+        }
+        // No separar si "y" acompaña a posesivos o artículos de banda:
+        if (bare === 'y' && /^\s+(?:sus|su|los|las|el|la|the)\b/i.test(after)) {
+          return match;
         }
       }
       return ',';
@@ -127,41 +147,61 @@ export function extractCollaborators(artistString: string): string[] {
  *   "Canción (feat. Artista B)"          -> ["Artista B"]
  *   "Canción ft. Artista B & Artista C"  -> ["Artista B", "Artista C"]
  *   "Artista A x Artista B - Canción"    -> ["Artista B"]
+ *
+ * Importante: Las letras "y" y "x" en títulos planos NO abren colaboraciones
+ * para evitar falsos positivos ("Toco y me voy", "Amor y control", etc.).
+ * Solo funcionan como separadores una vez que la colaboración está abierta
+ * explícitamente (ej. "(feat. A y B)") o en formatos de artista con guion
+ * ("Artista A x Artista B - Canción").
  */
 export function extractCollaboratorsFromTitle(title: string): string[] {
   const collaborators: string[] = [];
 
-  // 1) Paréntesis que contengan una keyword de colaboración: "Canción (feat. A, B)"
-  const parenRegex = /\(([^()]*)\)/g;
+  // 1) Paréntesis o corchetes que contengan una keyword de colaboración: "Canción (feat. A, B)"
+  const parenRegex = /[([]([^()[\]]*)[)\]]/g;
   const parenSegments: string[] = [];
   let remainder = title;
   let match: RegExpExecArray | null;
   while ((match = parenRegex.exec(title)) !== null) {
     const inner = match[1];
-    if (COLLAB_KEYWORD_TEST_REGEX.test(inner)) {
+    if (TITLE_COLLAB_KEYWORD_TEST_REGEX.test(inner)) {
       parenSegments.push(inner);
     }
   }
-  // Quitamos del texto principal los paréntesis que eran colaboración.
-  remainder = remainder.replace(/\(([^()]*)\)/g, (full, inner: string) =>
-    COLLAB_KEYWORD_TEST_REGEX.test(inner) ? ' ' : full
+  // Quitamos del texto principal los paréntesis/corchetes que eran colaboración.
+  remainder = remainder.replace(/[([]([^()[\]]*)[)\]]/g, (full, inner: string) =>
+    TITLE_COLLAB_KEYWORD_TEST_REGEX.test(inner) ? ' ' : full
   );
 
-  // 2) Texto fuera de paréntesis: los colaboradores van después de la primera keyword.
-  // Quitamos TODOS los paréntesis del resto (los de colaboración ya se procesaron arriba)
-  // para que ruido como "(Official Video)" no se pegue a los nombres.
-  remainder = remainder.replace(/\([^()]*\)/g, ' ');
-  const keywordIndex = remainder.search(COLLAB_KEYWORD_TEST_REGEX);
+  // Quitamos TODOS los paréntesis y corchetes restantes para que ruido
+  // como "(Official Video)" o "[Remix]" no se pegue a los nombres.
+  remainder = remainder.replace(/[([][^()[\]]*[)\]]/g, ' ');
+
+  // 2) Formato de artista previo con guion: "Artista A x Artista B - Canción"
+  const dashParts = remainder.split(/\s+[-\u2013\u2014]\s+/);
+  if (dashParts.length >= 2) {
+    const preDash = dashParts[0];
+    const xParts = preDash.split(/\s+[xX]\s+/);
+    if (xParts.length > 1) {
+      // El primer segmento es el artista principal; los siguientes son colaboradores.
+      for (const segment of xParts.slice(1)) {
+        collaborators.push(...extractCollaborators(segment));
+      }
+    }
+  }
+
+  // 3) Texto fuera de paréntesis: colaboradores introducidos por keyword explícita (feat, ft, with, vs)
+  const keywordIndex = remainder.search(TITLE_COLLAB_KEYWORD_TEST_REGEX);
   if (keywordIndex >= 0) {
     const afterKeyword = remainder
       .slice(keywordIndex)
-      .replace(COLLAB_KEYWORD_TEST_REGEX, ' ');
-    // Cortamos en el primer guion separador: "feat. A B - Official Video" -> "A B"
+      .replace(TITLE_COLLAB_KEYWORD_TEST_REGEX, ' ');
+    // Cortamos en el primer guion separador posterior: "feat. A B - Official Video" -> "A B"
     const region = afterKeyword.split(/\s+[-\u2013\u2014]\s+/)[0];
     collaborators.push(...extractCollaborators(region));
   }
 
-  // 3) Colaboradores dentro de paréntesis.
+  // 4) Colaboradores dentro de paréntesis.
   for (const segment of parenSegments) {
     collaborators.push(...extractCollaborators(segment));
   }

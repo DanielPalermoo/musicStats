@@ -1,10 +1,11 @@
-export type PlatformId = 'youtube' | 'spotify' | 'deezer' | 'soundcloud'
+export type PlatformId = 'youtube' | 'spotify' | 'deezer' | 'soundcloud' | 'tidal'
 
 export type Track = {
   id: string
   title: string
   artists: string[]
   duration: number
+  coverUrl?: string
 }
 
 export type Collaborator = {
@@ -20,6 +21,7 @@ export type ArtistStat = {
   featCount: number
   trackIds: string[]
   collaborators: Collaborator[]
+  imageUrl?: string
 }
 
 export type CollabEdge = {
